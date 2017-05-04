@@ -30,6 +30,8 @@ A query is run on a group of transactions. A query expression is true
 if there is a log record within the group that satisfies the
 condition. It is false only if none of the log records satisfies the
 condition. Query expressions can be combined using boolean functions.
+In addition to log records, it is possible to query transaction ids
+(vxid) in query.
 
 GROUPING
 ========
@@ -46,30 +48,30 @@ be 0.
 
 The grouping modes are:
 
-* Session
+* ``session``
 
   All transactions initiated by a client connection are reported
   together. Client connections are open ended when using HTTP
   keep-alives, so it is undefined when the session will be
   reported. If the transaction timeout period is exceeded an
-  incomplete session will be reported. Non-transactional data (VXID
+  incomplete session will be reported. Non-transactional data (vxid
   == 0) is not reported.
 
-* Request
+* ``request``
 
   Transactions are grouped by request, where the set will include the
   request itself as well as any backend requests or ESI-subrequests.
-  Session data and non-transactional data (VXID == 0) is not
+  Session data and non-transactional data (vxid == 0) is not
   reported.
 
-* VXID
+* ``vxid``
 
-  Transactions are not grouped, so each VXID is reported in it's
+  Transactions are not grouped, so each vxid is reported in it's
   entirety. Sessions, requests, ESI-requests and backend requests are
   all reported individually. Non-transactional data is not reported
-  (VXID == 0). This is the default.
+  (vxid == 0). This is the default.
 
-* Raw
+* ``raw``
 
   Every log record will make up a transaction of it's own. All data,
   including non-transactional data will be reported.
@@ -118,6 +120,16 @@ optionally an operator and a value to match against the selected
 records. ::
 
   <record selection criteria> <operator> <operand>
+
+Additionally, a query expression can occur on the transaction
+itself rather than log records belonging to the transaction. ::
+
+  vxid <numerical operator> <integer>
+
+A ``vxid`` query allows you to directly target a specific transacion,
+whose id can be obtained from an ``X-Varnish`` HTTP header, the
+default "guru meditation" error page, or ``Begin`` and ``Link`` log
+records.
 
 Record selection criteria
 -------------------------
@@ -272,6 +284,10 @@ QUERY EXPRESSION EXAMPLES
   their ESI subrequests. (Assumes request grouping mode). ::
 
     BerespStatus >= 500 or {2+}Timestamp:Process[2] > 1.
+
+* Log non-transactional errors. (Assumes raw grouping mode). ::
+
+    vxid == 0 and Error
 
 HISTORY
 =======

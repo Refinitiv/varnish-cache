@@ -151,21 +151,26 @@ mgt_vcl_setstate(struct cli *cli, struct vclprog *vp, const char *vs)
 	if (vp->warm == warm)
 		return (0);
 
-	vp->warm = warm;
-
-	if (vp->warm == 0)
-		vp->go_cold = 0;
-
-	if (child_pid < 0)
+	if (child_pid < 0) {
+		vp->warm = warm;
+		if (vp->warm == 0)
+			vp->go_cold = 0;
 		return (0);
+	}
 
 	i = mgt_cli_askchild(&status, &p, "vcl.state %s %d%s\n",
-	    vp->name, vp->warm, vp->state);
+	    vp->name, warm, vp->state);
 	if (i) {
 		AN(cli);
-		AN(vp->warm);
+		AN(warm);
 		VCLI_SetResult(cli, status);
 		VCLI_Out(cli, "%s", p);
+	} else {
+		/* Success, update mgt's VCL state to reflect child's
+		   state */
+		vp->warm = warm;
+		if (vp->warm == 0)
+			vp->go_cold = 0;
 	}
 
 	free(p);
@@ -216,6 +221,8 @@ mgt_new_vcl(struct cli *cli, const char *vclname, const char *vclsrc,
 
 	if (!mgt_cli_askchild(&status, &p, "vcl.load %s %s %d%s\n",
 	    vp->name, vp->fname, vp->warm, vp->state)) {
+		if (vp->warm && !strcmp(vp->state, "auto"))
+			vp->go_cold = VTIM_mono();
 		free(p);
 		return;
 	}

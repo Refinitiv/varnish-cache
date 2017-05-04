@@ -161,7 +161,7 @@ Furthermore you may want to look at and lock down:
 	Restrict VCL/VMODS to :ref:`ref_param_vcl_dir` and :ref:`ref_param_vmod_dir`
 
 :ref:`ref_param_vmod_dir`
-        The directory where Varnish will will look
+        The directory where Varnish will look
         for modules. This could potentially be used to load rouge
         modules into Varnish.
 

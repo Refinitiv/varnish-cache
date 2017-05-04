@@ -2,7 +2,7 @@ AC_PREREQ(2.59)
 AC_COPYRIGHT([Copyright (c) 2006 Verdens Gang AS
 Copyright (c) 2006-2016 Varnish Software])
 AC_REVISION([$Id$])
-AC_INIT([Varnish], [4.1.5], [varnish-dev@varnish-cache.org])
+AC_INIT([Varnish], [4.1.6], [varnish-dev@varnish-cache.org])
 AC_CONFIG_SRCDIR(include/miniobj.h)
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -244,6 +244,7 @@ AC_CHECK_MEMBERS([struct sockaddr.sa_len],,,[
 ])
 
 # Checks for library functions.
+_VARNISH_CHECK_EXPLICIT_BZERO
 AC_TYPE_SIGNAL
 AC_TYPE_SIZE_T
 AC_FUNC_VPRINTF
@@ -251,6 +252,7 @@ AC_CHECK_FUNCS([strerror])
 AC_FUNC_STRERROR_R
 AC_CHECK_FUNCS([dladdr])
 AC_CHECK_FUNCS([socket])
+AC_CHECK_FUNCS([explicit_bzero])
 AC_CHECK_FUNCS([nanosleep])
 AC_CHECK_FUNCS([setppriv])
 AC_CHECK_FUNCS([fallocate])

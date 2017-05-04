@@ -28,14 +28,17 @@
 
 #include "config.h"
 
-#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <netinet/in.h>
 
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include "vrt.h"
 #include "vtcp.h"
@@ -176,6 +179,15 @@ vmod_syslog(VRT_CTX, VCL_INT fac, const char *fmt, ...)
 	va_end(ap);
 }
 
+VCL_BOOL __match_proto__(td_std_file_exists)
+vmod_file_exists(VRT_CTX, VCL_STRING file_name)
+{
+	struct stat st;
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	return (stat(file_name, &st) == 0);
+}
+
 VCL_VOID __match_proto__(td_std_collect)
 vmod_collect(VRT_CTX, VCL_HEADER hdr)
 {
@@ -252,4 +264,13 @@ vmod_strstr(VRT_CTX, VCL_STRING s1, VCL_STRING s2)
 	if (s1 == NULL || s2 == NULL)
 		return (NULL);
 	return (strstr(s1, s2));
+}
+
+VCL_STRING __match_proto__(td_std_getenv)
+vmod_getenv(VRT_CTX, VCL_STRING name)
+{
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	if (name == NULL || *name == '\0')
+		return (NULL);
+	return (getenv(name));
 }
