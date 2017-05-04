@@ -150,7 +150,7 @@ VDI_Finish(struct worker *wrk, struct busyobj *bo)
 /* Get a connection --------------------------------------------------*/
 
 int
-VDI_Http1Pipe(struct req *req, struct busyobj *bo)
+VDI_Http1Pipe_Req(struct req *req, struct busyobj *bo)
 {
 	const struct director *d;
 
@@ -158,9 +158,27 @@ VDI_Http1Pipe(struct req *req, struct busyobj *bo)
 	CHECK_OBJ_NOTNULL(bo, BUSYOBJ_MAGIC);
 
 	d = vdi_resolve(req->wrk, bo);
-	if (d == NULL || d->http1pipe == NULL)
+	if (d == NULL || d->http1pipe_req == NULL)
 		return (-1);
-	d->http1pipe(d, req, bo);
+	d->http1pipe_req(d, req, bo);
+	return (0);
+}
+
+/* Pipe on existing connection ----------------------------------------------*/
+
+int
+VDI_Http1Pipe_Resp(struct req *req, struct busyobj *bo)
+{
+	const struct director *d;
+
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	CHECK_OBJ_ORNULL(bo, BUSYOBJ_MAGIC);
+
+	d = bo->director_resp;
+	if (d == NULL || d->http1pipe_resp == NULL) {
+		return (-1);
+	}
+	d->http1pipe_resp(d, req, bo);
 	return (0);
 }
 

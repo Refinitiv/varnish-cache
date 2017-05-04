@@ -35,7 +35,8 @@ code instead::
     #define DIRECTOR_MAGIC          0x3336351d
             const char              *name;
             char                    *vcl_name;
-            vdi_http1pipe_f         *http1pipe;
+            vdi_http1pipe_req_f     *http1pipe_req;
+            vdi_http1pipe_resp_f    *http1pipe_resp;
             vdi_healthy_f           *healthy;
             vdi_resolve_f           *resolve;
             vdi_gethdrs_f           *gethdrs;

@@ -495,6 +495,14 @@ sp_variables = [
 		get freed early, depending on the storage engine used.
 		"""
 	),
+	('beresp.do_pipe',
+		'BOOL',
+		('backend_response',),
+		('backend_response',), """
+		Boolean. Open a pipe between backend's response and client.
+                Ideal when http connection has been upgraded (e.g. websocket)
+		"""
+	),
 	('beresp.do_gzip',
 		'BOOL',
 		( 'backend_response', 'backend_error'),

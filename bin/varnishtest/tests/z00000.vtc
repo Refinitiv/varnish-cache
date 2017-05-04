@@ -1,0 +1,26 @@
+varnishtest "Check that do_pipe transaction works"
+
+server s1 {
+	rxreq
+	txresp -status 101 -body "012345\n"
+} -start
+
+varnish v1 -vcl+backend {
+        sub vcl_recv {
+                return (pass);
+        }
+	sub vcl_backend_response {
+		set beresp.do_pipe = true;
+	}
+        sub vcl_deliver {
+                set resp.http.set-cookie = "foo=bar";
+        }
+} -start
+
+client c1 {
+        timeout 8
+	txreq -url "/"
+	rxresp
+	expect resp.status == 101
+	expect resp.http.set-cookie == "foo=bar"
+} -run

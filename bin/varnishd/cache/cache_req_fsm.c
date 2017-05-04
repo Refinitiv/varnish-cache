@@ -201,7 +201,7 @@ cnt_deliver(struct worker *wrk, struct req *req)
 	if (bo != NULL) {
 		if (req->esi_level == 0 && bo->state == BOS_FINISHED) {
 			VBO_DerefBusyObj(wrk, &bo);
-		} else if (!bo->do_stream) {
+		} else if (!bo->do_stream && !bo->do_pipe) {
 			VBO_waitstate(bo, BOS_FINISHED);
 			VBO_DerefBusyObj(wrk, &bo);
 		}
@@ -213,6 +213,14 @@ cnt_deliver(struct worker *wrk, struct req *req)
 
 	if (http_HdrIs(req->resp, H_Connection, "close"))
 		req->doclose = SC_RESP_CLOSE;
+
+	if (bo != NULL && bo->do_pipe) {
+		VBO_waitstate(bo, BOS_PIPE);
+		VBO_setstate(bo, BOS_FINISHED);
+		wrk->stats->s_pipe++;
+		if (VDI_Http1Pipe_Resp(req, bo) < 0)
+			VSLb(bo->vsl, SLT_VCL_Error, "Backend does not support pipe");
+	}
 
 	if (req->objcore->flags & (OC_F_PRIVATE | OC_F_PASS)) {
 		if (bo != NULL)
@@ -595,7 +603,7 @@ cnt_pipe(struct worker *wrk, struct req *req)
 	bo->req = req;
 	bo->wrk = wrk;
 
-	if (VDI_Http1Pipe(req, bo) < 0)
+	if (VDI_Http1Pipe_Req(req, bo) < 0)
 		VSLb(bo->vsl, SLT_VCL_Error, "Backend does not support pipe");
 	http_Teardown(bo->bereq);
 	VBO_DerefBusyObj(wrk, &bo);

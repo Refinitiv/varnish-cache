@@ -269,7 +269,7 @@ vbe_dir_getip(const struct director *d, struct worker *wrk,
 /*--------------------------------------------------------------------*/
 
 static void
-vbe_dir_http1pipe(const struct director *d, struct req *req, struct busyobj *bo)
+vbe_dir_http1pipe_req(const struct director *d, struct req *req, struct busyobj *bo)
 {
 	int i;
 	struct backend *bp;
@@ -299,6 +299,45 @@ vbe_dir_http1pipe(const struct director *d, struct req *req, struct busyobj *bo)
 		VSLb_ts_req(req, "Pipe", W_TIM_real(req->wrk));
 		if (i == 0)
 			V1P_Process(req, vbc->fd, &v1a);
+		VSLb_ts_req(req, "PipeSess", W_TIM_real(req->wrk));
+		SES_Close(req->sp, SC_TX_PIPE);
+		bo->htc->doclose = SC_TX_PIPE;
+		vbe_dir_finish(d, req->wrk, bo);
+	}
+	V1P_Charge(req, &v1a, bp->vsc);
+}
+
+/*--------------------------------------------------------------------*/
+
+static void
+vbe_dir_http1pipe_resp(const struct director *d, struct req *req, struct busyobj *bo)
+{
+	struct backend *bp;
+	struct v1p_acct v1a;
+	struct http_conn *htc;
+
+	CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
+	CHECK_OBJ_NOTNULL(bo, BUSYOBJ_MAGIC);
+	CAST_OBJ_NOTNULL(bp, d->priv, BACKEND_MAGIC);
+
+	memset(&v1a, 0, sizeof v1a);
+
+	/* This is hackish... */
+	v1a.req = req->acct.req_hdrbytes;
+	req->acct.req_hdrbytes = 0;
+
+	req->res_mode = RES_PIPE;
+
+	htc = bo->htc;
+	CHECK_OBJ_ORNULL(htc, HTTP_CONN_MAGIC);
+
+	if (htc == NULL) {
+		VSLb(bo->vsl, SLT_FetchError, "no backend connection");
+		SES_Close(req->sp, SC_RX_TIMEOUT);
+	} else {
+		VSLb_ts_req(req, "Pipe", W_TIM_real(req->wrk));
+		V1P_Process(req, htc->fd, &v1a);
 		VSLb_ts_req(req, "PipeSess", W_TIM_real(req->wrk));
 		SES_Close(req->sp, SC_TX_PIPE);
 		bo->htc->doclose = SC_TX_PIPE;
@@ -344,7 +383,8 @@ VBE_fill_director(struct backend *be)
 	d->priv = be;
 	d->name = "backend";
 	d->vcl_name = be->vcl_name;
-	d->http1pipe = vbe_dir_http1pipe;
+	d->http1pipe_req = vbe_dir_http1pipe_req;
+	d->http1pipe_resp = vbe_dir_http1pipe_resp;
 	d->healthy = vbe_dir_healthy;
 	d->gethdrs = vbe_dir_gethdrs;
 	d->getbody = vbe_dir_getbody;

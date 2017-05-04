@@ -232,6 +232,7 @@ vbf_stp_retry(struct worker *wrk, struct busyobj *bo)
 	bo->storage_hint = NULL;
 	bo->do_esi = 0;
 	bo->do_stream = 1;
+	bo->do_pipe = 0;
 
 	/* reset fetch processors */
 	VFP_Setup(vfc);
@@ -333,10 +334,9 @@ vbf_stp_startfetch(struct worker *wrk, struct busyobj *bo)
 		/*
 		 * 1xx responses never have a body.
 		 * [RFC7230 3.3.2 p31]
-		 * ... but we should never see them.
 		 */
 		wrk->stats->fetch_1xx++;
-		bo->htc->body_status = BS_ERROR;
+		bo->htc->body_status = BS_NONE;
 	} else if (http_IsStatus(bo->beresp, 204)) {
 		/*
 		 * 204 is "No Content", obviously don't expect a body.
@@ -451,8 +451,10 @@ vbf_stp_startfetch(struct worker *wrk, struct busyobj *bo)
 
 	assert(bo->state == BOS_REQ_DONE);
 
-	if (bo->do_esi)
+	if (bo->do_esi) {
 		bo->do_stream = 0;
+		bo->do_pipe = 0;
+	}
 	if (bo->do_pass || bo->uncacheable)
 		bo->fetch_objcore->flags |= OC_F_PASS;
 
@@ -523,7 +525,7 @@ vbf_fetch_body_helper(struct busyobj *bo)
 		bo->htc->doclose = SC_RX_BODY;
 	}
 
-	if (!bo->do_stream)
+	if (!bo->do_stream && !bo->do_pipe)
 		ObjTrimStore(bo->wrk, vfc->oc);
 }
 
@@ -671,7 +673,7 @@ vbf_stp_fetch(struct worker *wrk, struct busyobj *bo)
 
 	VSLb(bo->vsl, SLT_Fetch_Body, "%u %s %s",
 	    bo->htc->body_status, body_status_2str(bo->htc->body_status),
-	    bo->do_stream ? "stream" : "-");
+	    bo->do_stream ? "stream" : (bo->do_pipe ? "pipe" : "-"));
 
 	if (bo->htc->body_status != BS_NONE) {
 		assert(bo->htc->body_status != BS_ERROR);
@@ -699,14 +701,24 @@ vbf_stp_fetch(struct worker *wrk, struct busyobj *bo)
 		HSH_Unbusy(wrk, bo->fetch_objcore);
 	}
 
-	/* Recycle the backend connection before setting BOS_FINISHED to
-	   give predictable backend reuse behavior for varnishtest */
-	VDI_Finish(bo->wrk, bo);
+	if (bo->do_pipe) {
+		VBO_setstate(bo, BOS_PIPE);
+		VBO_waitstate(bo, BOS_FINISHED);
 
-	VBO_setstate(bo, BOS_FINISHED);
-	VSLb_ts_busyobj(bo, "BerespBody", W_TIM_real(wrk));
-	if (bo->stale_oc != NULL)
-		EXP_Rearm(bo->stale_oc, bo->stale_oc->exp.t_origin, 0, 0, 0);
+		// ZZZ: hack
+		bo->director_state = DIR_S_NULL;
+		bo->fetch_objcore->busyobj = NULL;
+	}
+	else {
+		/* Recycle the backend connection before setting BOS_FINISHED to
+		   give predictable backend reuse behavior for varnishtest */
+		VDI_Finish(bo->wrk, bo);
+
+		VBO_setstate(bo, BOS_FINISHED);
+		VSLb_ts_busyobj(bo, "BerespBody", W_TIM_real(wrk));
+		if (bo->stale_oc != NULL)
+			EXP_Rearm(bo->stale_oc, bo->stale_oc->exp.t_origin, 0, 0, 0);
+	}
 	return (F_STP_DONE);
 }
 

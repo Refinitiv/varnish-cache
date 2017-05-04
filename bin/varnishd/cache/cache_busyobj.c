@@ -258,6 +258,7 @@ VBO_setstate(struct busyobj *bo, enum busyobj_state_e next)
 {
 	CHECK_OBJ_NOTNULL(bo, BUSYOBJ_MAGIC);
 	assert(bo->do_stream || next != BOS_STREAM);
+	assert(bo->do_pipe || next != BOS_PIPE);
 	assert(next > bo->state);
 	Lck_Lock(&bo->mtx);
 	bo->state = next;

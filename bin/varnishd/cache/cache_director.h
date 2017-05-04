@@ -58,7 +58,9 @@ typedef const struct suckaddr *vdi_getip_f(const struct director *,
 typedef void vdi_finish_f(const struct director *, struct worker *,
     struct busyobj *);
 
-typedef void vdi_http1pipe_f(const struct director *, struct req *,
+typedef void vdi_http1pipe_req_f(const struct director *, struct req *,
+    struct busyobj *);
+typedef void vdi_http1pipe_resp_f(const struct director *, struct req *,
     struct busyobj *);
 
 typedef void vdi_panic_f(const struct director *, struct vsb *);
@@ -68,7 +70,8 @@ struct director {
 #define DIRECTOR_MAGIC		0x3336351d
 	const char		*name;
 	char			*vcl_name;
-	vdi_http1pipe_f		*http1pipe;
+	vdi_http1pipe_req_f	*http1pipe_req;
+	vdi_http1pipe_resp_f	*http1pipe_resp;
 	vdi_healthy_f		*healthy;
 	vdi_resolve_f		*resolve;
 	vdi_gethdrs_f		*gethdrs;
@@ -88,7 +91,8 @@ const struct suckaddr *VDI_GetIP(struct worker *, struct busyobj *);
 
 void VDI_Finish(struct worker *wrk, struct busyobj *bo);
 
-int VDI_Http1Pipe(struct req *, struct busyobj *);
+int VDI_Http1Pipe_Req(struct req *, struct busyobj *);
+int VDI_Http1Pipe_Resp(struct req *, struct busyobj *);
 
 int VDI_Healthy(const struct director *, const struct busyobj *);
 void VDI_Panic(const struct director *, struct vsb *, const char *nm);
