@@ -130,8 +130,6 @@ struct vsl_watch {
 	VTAILQ_ENTRY(vsl_watch)	list;
 	enum VSL_tag_e		tag;
 	int			idx;
-	char			*prefix;
-	int			prefixlen;
 	struct fragment		frag;
 };
 VTAILQ_HEAD(vsl_watch_head, vsl_watch);
@@ -569,7 +567,7 @@ addf_hdr(struct watch_head *head, const char *key, const char *str)
 }
 
 static void
-addf_vsl(enum VSL_tag_e tag, long i, const char *prefix)
+addf_vsl(enum VSL_tag_e tag, long i)
 {
 	struct vsl_watch *w;
 
@@ -578,10 +576,6 @@ addf_vsl(enum VSL_tag_e tag, long i, const char *prefix)
 	w->tag = tag;
 	assert(i <= INT_MAX);
 	w->idx = i;
-	if (prefix) {
-		assert(asprintf(&w->prefix, "%s:", prefix) > 0);
-		w->prefixlen = strlen(w->prefix);
-	}
 	VTAILQ_INSERT_TAIL(&CTX.watch_vsl, w, list);
 
 	addf_fragment(&w->frag, "-");
@@ -664,23 +658,14 @@ parse_x_format(char *buf)
 			*r = '\0';
 		} else
 			i = 0;
-		r = buf;
-		while (r < e && *r != ':')
-			r++;
-		if (r != e) {
-			slt = VSL_Name2Tag(buf, r - buf);
-			r++;
-		} else {
-			slt = VSL_Name2Tag(buf, -1);
-			r = NULL;
-		}
+		slt = VSL_Name2Tag(buf, -1);
 		if (slt == -2)
 			VUT_Error(1, "Tag not unique: %s", buf);
 		if (slt == -1)
 			VUT_Error(1, "Unknown log tag: %s", buf);
 		assert(slt >= 0);
 
-		addf_vsl(slt, i, r);
+		addf_vsl(slt, i);
 		return;
 	}
 	VUT_Error(1, "Unknown formatting extension: %s", buf);
@@ -917,20 +902,15 @@ process_vsl(const struct vsl_watch_head *head, enum VSL_tag_e tag,
     const char *b, const char *e)
 {
 	struct vsl_watch *w;
-	const char *p;
 
 	VTAILQ_FOREACH(w, head, list) {
 		CHECK_OBJ_NOTNULL(w, VSL_WATCH_MAGIC);
 		if (tag != w->tag)
 			continue;
-		p = b;
-		if (w->prefixlen > 0 &&
-		    !isprefix(w->prefix, w->prefixlen, b, e, &p))
-			continue;
 		if (w->idx == 0)
-			frag_line(0, p, e, &w->frag);
+			frag_line(0, b, e, &w->frag);
 		else
-			frag_fields(0, p, e, w->idx, &w->frag, 0, NULL);
+			frag_fields(0, b, e, w->idx, &w->frag, 0, NULL);
 	}
 }
 
@@ -1111,7 +1091,7 @@ dispatch_f(struct VSL_data *vsl, struct VSL_transaction * const pt[],
 			    (tag == SLT_BerespHeader && CTX.b_opt))
 				process_hdr(&CTX.watch_resphdr, b, e);
 
-			process_vsl(&CTX.watch_vsl, tag, b, e);
+			process_vsl(&CTX.watch_vsl, tag, b ,e);
 		}
 		if (skip)
 			continue;
