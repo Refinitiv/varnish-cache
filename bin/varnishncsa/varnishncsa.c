@@ -487,7 +487,7 @@ addf_int32(int32_t *i)
 }
 
 static void
-addf_time(char type, const char *fmt)
+addf_time(char type, const char *fmt, const char *str)
 {
 	struct format *f;
 
@@ -498,6 +498,10 @@ addf_time(char type, const char *fmt)
 	if (fmt != NULL) {
 		f->time_fmt = strdup(fmt);
 		AN(f->time_fmt);
+	}
+	if (str != NULL) {
+		f->string = strdup(str);
+		AN(f->string);
 	}
 	VTAILQ_INSERT_TAIL(&CTX.format, f, list);
 }
@@ -522,7 +526,8 @@ addf_vcl_log(const char *key, const char *str)
 	AN(key);
 	ALLOC_OBJ(w, WATCH_MAGIC);
 	AN(w);
-	assert(asprintf(&w->key, "%s:", key) > 0);
+	w->key = strdup(key);
+	AN(w->key);
 	w->keylen = strlen(w->key);
 	VTAILQ_INSERT_TAIL(&CTX.watch_vcl_log, w, list);
 
@@ -722,7 +727,7 @@ parse_format(const char *format)
 			addf_fragment(&CTX.frag[F_b], "-");
 			break;
 		case 'D':	/* Float request time */
-			addf_time(*p, NULL);
+			addf_time(*p, NULL, NULL);
 			break;
 		case 'h':	/* Client host name / IP Address */
 			addf_fragment(&CTX.frag[F_h], "-");
@@ -752,10 +757,10 @@ parse_format(const char *format)
 			addf_fragment(&CTX.frag[F_s], "-");
 			break;
 		case 't':	/* strftime */
-			addf_time(*p, TIME_FMT);
+			addf_time(*p, TIME_FMT, NULL);
 			break;
 		case 'T':	/* Int request time */
-			addf_time(*p, NULL);
+			addf_time(*p, NULL, NULL);
 			break;
 		case 'u':	/* Remote user from auth */
 			addf_auth("-");
@@ -785,7 +790,7 @@ parse_format(const char *format)
 				addf_hdr(&CTX.watch_resphdr, buf, "-");
 				break;
 			case 't':
-				addf_time(*q, buf);
+				addf_time(*q, buf, NULL);
 				break;
 			case 'x':
 				parse_x_format(buf);
@@ -898,12 +903,11 @@ static void
 process_hdr(const struct watch_head *head, const char *b, const char *e)
 {
 	struct watch *w;
-	const char *p;
 
 	VTAILQ_FOREACH(w, head, list) {
-		if (!isprefix(w->key, w->keylen, b, e, &p))
+		if (e - b < w->keylen || strncasecmp(b, w->key, w->keylen))
 			continue;
-		frag_line(1, p, e, &w->frag);
+		frag_line(1, b + w->keylen, e, &w->frag);
 	}
 }
 
@@ -938,7 +942,6 @@ dispatch_f(struct VSL_data *vsl, struct VSL_transaction * const pt[],
 	const char *b, *e, *p;
 	struct watch *w;
 	int i, skip, be_mark;
-
 	(void)vsl;
 	(void)priv;
 
@@ -1084,10 +1087,15 @@ dispatch_f(struct VSL_data *vsl, struct VSL_transaction * const pt[],
 			case SLT_VCL_Log:
 				VTAILQ_FOREACH(w, &CTX.watch_vcl_log, list) {
 					CHECK_OBJ_NOTNULL(w, WATCH_MAGIC);
-					if (e - b < w->keylen ||
+					if (e - b <= w->keylen ||
 					    strncmp(b, w->key, w->keylen))
 						continue;
 					p = b + w->keylen;
+					if (*p != ':')
+						continue;
+					p++;
+					if (p > e)
+						continue;
 					frag_line(0, p, e, &w->frag);
 				}
 				break;
