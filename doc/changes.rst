@@ -1,5 +1,5 @@
 ======================================
-Varnish Cache 4.1.7-beta1 (2017-06-15)
+Varnish Cache 4.1.7-beta1 (unreleased)
 ======================================
 
 Changes since 4.1.6:
