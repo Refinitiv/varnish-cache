@@ -79,7 +79,6 @@ struct varnish {
 
 	unsigned		vsl_tag_count[256];
 
-	volatile int		vsl_rec;
 	volatile int		vsl_idle;
 };
 
@@ -187,16 +186,6 @@ wait_running(const struct varnish *v)
  * Varnishlog gatherer thread
  */
 
-static void
-vsl_catchup(const struct varnish *v)
-{
-	int vsl_idle;
-
-	vsl_idle = v->vsl_idle;
-	while (vsl_idle == v->vsl_idle)
-		VTIM_sleep(0.1);
-}
-
 static void *
 varnishlog_thread(void *priv)
 {
@@ -242,7 +231,6 @@ varnishlog_thread(void *priv)
 		if (i == 0) {
 			v->vsl_idle++;
 			/* Nothing to do but wait */
-			v->vsl_idle++;
 			VTIM_sleep(0.1);
 			continue;
 		} else if (i == -2) {
@@ -1006,10 +994,6 @@ varnish_expect(const struct varnish *v, char * const *av)
  *         a correct value. OP can be ==, >, >=, <, <=. For example::
  *
  *                 varnish v1 -expect SMA.s1.g_space > 1000000
- *
- * \-vsl_catchup
- *         Wait until the logging thread has idled to make sure that all
- *         the generated log is flushed
  */
 
 void
@@ -1144,10 +1128,6 @@ cmd_varnish(CMD_ARGS)
 		}
 		if (!strcmp(*av, "-wait")) {
 			varnish_wait(v);
-			continue;
-		}
-		if (!strcmp(*av, "-vsl_catchup")) {
-			vsl_catchup(v);
 			continue;
 		}
 		vtc_log(v->vl, 0, "Unknown varnish argument: %s", *av);
