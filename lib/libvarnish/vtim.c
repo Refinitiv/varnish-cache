@@ -61,7 +61,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #endif
@@ -407,6 +406,7 @@ VTIM_timeval(double t)
 {
 	struct timeval tv;
 
+	AZ(isnan(t));
 	tv.tv_sec = (time_t)trunc(t);
 	tv.tv_usec = (int)(1e6 * (t - tv.tv_sec));
 	return (tv);
@@ -417,6 +417,7 @@ VTIM_timespec(double t)
 {
 	struct timespec tv;
 
+	AZ(isnan(t));
 	tv.tv_sec = (time_t)trunc(t);
 	tv.tv_nsec = (int)(1e9 * (t - tv.tv_sec));
 	return (tv);
@@ -488,7 +489,7 @@ tst_delta()
 	err += tst_delta_check("VTIM_real", r_begin, r_end, ref);
 
 	if (err) {
-		printf("%d time delta test errrors\n", err);
+		printf("%d time delta test errors\n", err);
 		exit(4);
 	}
 }

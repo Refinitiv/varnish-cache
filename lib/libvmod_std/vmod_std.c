@@ -28,6 +28,8 @@
 
 #include "config.h"
 
+#include <sys/stat.h>
+
 #include <netinet/in.h>
 
 #include <ctype.h>

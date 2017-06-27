@@ -49,7 +49,6 @@ struct token {
 	const char		*b;
 	const char		*e;
 	VTAILQ_ENTRY(token)	list;
-	unsigned		cnt;
 	char			*dec;
 };
 
@@ -57,7 +56,6 @@ struct vxp {
 	unsigned		magic;
 #define VXP_MAGIC		0x59C7F6AC
 
-	const char		*src;
 	const char		*b;
 	const char		*e;
 
@@ -66,13 +64,11 @@ struct vxp {
 	struct token		*t;
 
 	unsigned		vex_options;
-	int			vre_options;
+	unsigned		vre_options;
 
 	struct vsb		*sb;
 	int			err;
 };
-
-struct vex;
 
 struct vex_lhs {
 	/* Left-hand-side of a vex expression. Stores the information
@@ -124,7 +120,6 @@ struct vex {
 /* VXP internals */
 
 #define ERRCHK(tl)	do { if ((tl)->err) return; } while (0)
-#define Expect(a, b)	vxp__Expect(a, b)
 #define ExpectErr(a, b)	\
     do { vxp__Expect(a, b); ERRCHK(a); } while (0)
 #define SkipToken(a, b) \

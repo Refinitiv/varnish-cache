@@ -37,16 +37,11 @@ nobase_pkginclude_HEADERS = \
 	tbl/vhp_huffman.h \
 	tbl/vhp_static.h \
 	tbl/vrt_stv_var.h \
-	tbl/vsc_all.h \
-	tbl/vsc_f_main.h \
-	tbl/vsc_fields.h \
 	tbl/vsc_levels.h \
-	tbl/vsc_types.h \
 	tbl/vsl_tags.h \
 	tbl/vsl_tags_http.h \
 	tbl/waiters.h \
 	vapi/vsm.h \
-	vapi/vsm_int.h \
 	vapi/vsc.h \
 	vapi/vsc_int.h \
 	vapi/vsl.h \
@@ -95,6 +90,7 @@ nobase_noinst_HEADERS = \
 	vnum.h \
 	vpf.h \
 	vsl_priv.h \
+	vsmw.h \
 	vsm_priv.h \
 	vsub.h \
 	vss.h \
@@ -120,11 +116,7 @@ BUILT_SOURCES = $(GENERATED_H)
 MAINTAINERCLEANFILES = vcs_version.h
 
 CLEANFILES = \
-	tbl/vcl_returns.h \
-	tbl/vrt_stv_var.h \
-	vcl.h \
-	vrt_obj.h \
-	vmod_abi.h \
+	$(GENERATED_H) \
 	vrt_test \
 	_vrt_test \
 	vrt.c

@@ -31,7 +31,6 @@
 
 #include "config.h"
 
-#include <stdarg.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -44,16 +43,17 @@
 
 #include "mgt/mgt.h"
 #include "common/heritage.h"
+#include "common/common_vsm.h"
 
 #include "hash/hash_slinger.h"
 #include "vav.h"
 #include "vcli_serve.h"
+#include "vend.h"
 #include "vev.h"
 #include "vfil.h"
 #include "vin.h"
 #include "vpf.h"
 #include "vrnd.h"
-#include "vsb.h"
 #include "vsha256.h"
 #include "vsub.h"
 #include "vtim.h"
@@ -65,12 +65,16 @@ pid_t			mgt_pid;
 struct vev_base		*mgt_evb;
 int			exit_status = 0;
 struct vsb		*vident;
-struct VSC_C_mgt	static_VSC_C_mgt;
-struct VSC_C_mgt	*VSC_C_mgt;
+struct VSC_mgt		static_VSC_C_mgt;
+struct VSC_mgt		*VSC_C_mgt;
 static int		I_fd = -1;
 static char		Cn_arg[] = "/tmp/varnishd_C_XXXXXXX";
 
-static struct vpf_fh *pfh = NULL;
+static struct vpf_fh *pfh1 = NULL;
+static struct vpf_fh *pfh2 = NULL;
+
+static struct vfil_path *vcl_path = NULL;
+VTAILQ_HEAD(,f_arg) f_args = VTAILQ_HEAD_INITIALIZER(f_args);
 
 int optreset;	// Some has it, some doesn't.  Cheaper than auto*
 
@@ -179,8 +183,9 @@ mgt_stdin_close(void *priv)
 	if (d_flag) {
 		MCH_Stop_Child();
 		mgt_cli_close_all();
-		if (pfh != NULL)
-			(void)VPF_Remove(pfh);
+		(void)VPF_Remove(pfh1);
+		if (pfh2 != NULL)
+			(void)VPF_Remove(pfh2);
 		exit(0);
 	} else {
 		VFIL_null_fd(STDIN_FILENO);
@@ -274,7 +279,11 @@ init_params(struct cli *cli)
 	low = sysconf(_SC_THREAD_STACK_MIN);
 	MCF_ParamConf(MCF_MINIMUM, "thread_pool_stack", "%jdb", (intmax_t)low);
 
+#if defined(WITH_SANITIZERS)
+	def = 92 * 1024;
+#else
 	def = 48 * 1024;
+#endif
 	if (def < low)
 		def = low;
 	MCF_ParamConf(MCF_DEFAULT, "thread_pool_stack", "%jdb", (intmax_t)def);
@@ -282,37 +291,6 @@ init_params(struct cli *cli)
 	MCF_ParamConf(MCF_MAXIMUM, "thread_pools", "%d", MAX_THREAD_POOLS);
 
 	MCF_InitParams(cli);
-}
-
-
-/*--------------------------------------------------------------------*/
-
-static void
-identify(const char *i_arg)
-{
-	char id[17], *p;
-	int i;
-
-	strcpy(id, "varnishd");
-
-	if (i_arg != NULL) {
-		if (strlen(i_arg) + 1 > 1024)
-			ARGV_ERR("Identity (-i) name too long (max 1023).\n");
-		heritage.identity = strdup(i_arg);
-		AN(heritage.identity);
-		i = strlen(id);
-		id[i++] = '/';
-		for (; i < (sizeof(id) - 1L); i++) {
-			if (!isalnum(*i_arg))
-				break;
-			id[i] = *i_arg++;
-		}
-		id[i] = '\0';
-	}
-	p = strdup(id);
-	AN(p);
-
-	openlog(p, LOG_PID, LOG_LOCAL0);
 }
 
 static void
@@ -443,7 +421,7 @@ mgt_uptime(const struct vev *e, int what)
 	VSC_C_mgt->uptime = static_VSC_C_mgt.uptime =
 	    (uint64_t)(VTIM_real() - mgt_uptime_t0);
 	if (heritage.vsm != NULL)
-		VSM_common_ageupdate(heritage.vsm);
+		CVSM_ageupdate(heritage.vsm);
 	return (0);
 }
 
@@ -466,6 +444,27 @@ struct f_arg {
 	char			*src;
 	VTAILQ_ENTRY(f_arg)	list;
 };
+
+static void
+mgt_f_read(const char *fn)
+{
+	struct f_arg *fa;
+	char *f, *fnp;
+
+	ALLOC_OBJ(fa, F_ARG_MAGIC);
+	AN(fa);
+	REPLACE(fa->farg, fn);
+	VFIL_setpath(&vcl_path, mgt_vcl_path);
+	if (VFIL_searchpath(vcl_path, NULL, &f, fn, &fnp) || f == NULL) {
+		ARGV_ERR("Cannot read -f file '%s' (%s)\n",
+		    fnp != NULL ? fnp : fn, strerror(errno));
+		free(fnp);
+	}
+	free(fa->farg);
+	fa->farg = fnp;
+	fa->src = f;
+	VTAILQ_INSERT_TAIL(&f_args, fa, list);
+}
 
 static const char opt_spec[] = "a:b:Cdf:Fh:i:I:j:l:M:n:P:p:r:S:s:T:t:VW:x:";
 
@@ -498,7 +497,7 @@ main(int argc, char * const *argv)
 	struct vev *e;
 	struct f_arg *fa;
 	struct vsb *vsb;
-	VTAILQ_HEAD(,f_arg) f_args = VTAILQ_HEAD_INITIALIZER(f_args);
+	pid_t pid;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -650,14 +649,7 @@ main(int argc, char * const *argv)
 				novcl = 1;
 				break;
 			}
-			ALLOC_OBJ(fa, F_ARG_MAGIC);
-			AN(fa);
-			REPLACE(fa->farg, optarg);
-			fa->src = VFIL_readfile(NULL, fa->farg, NULL);
-			if (fa->src == NULL)
-				ARGV_ERR("Cannot read -f file (%s): %s\n",
-				    fa->farg, strerror(errno));
-			VTAILQ_INSERT_TAIL(&f_args, fa, list);
+			mgt_f_read(optarg);
 			break;
 		case 'h':
 			h_arg = optarg;
@@ -767,14 +759,16 @@ main(int argc, char * const *argv)
 		VJ_master(JAIL_MASTER_LOW);
 	}
 
-	if (VIN_N_Arg(n_arg, &heritage.name, &dirname, NULL) != 0)
+	if (VIN_n_Arg(n_arg, &dirname) != 0)
 		ARGV_ERR("Invalid instance (-n) name: %s\n", strerror(errno));
 
-#ifdef HAVE_SETPROCTITLE
-	setproctitle("Varnish-Mgr %s", heritage.name);
-#endif
+	if (i_arg == NULL || *i_arg == '\0')
+		i_arg = mgt_HostName();
+	heritage.identity = i_arg;
 
-	identify(i_arg);
+	mgt_ProcTitle("Mgr");
+
+	openlog("varnishd", LOG_PID, LOG_LOCAL0);
 
 	if (VJ_make_workdir(dirname))
 		ARGV_ERR("Cannot create working directory (%s): %s\n",
@@ -786,10 +780,28 @@ main(int argc, char * const *argv)
 		    dirname, strerror(errno));
 	}
 
+	vsb = VSB_new_auto();
+	AN(vsb);
+	VSB_printf(vsb, "%s/_.pid", dirname);
+	AZ(VSB_finish(vsb));
 	VJ_master(JAIL_MASTER_FILE);
-	if (P_arg && (pfh = VPF_Open(P_arg, 0644, NULL)) == NULL)
-		ARGV_ERR("Could not open pid/lock (-P) file (%s): %s\n",
-		    P_arg, strerror(errno));
+	pfh1 = VPF_Open(VSB_data(vsb), 0644, &pid);
+	if (pfh1 == NULL && errno == EEXIST)
+		ARGV_ERR("Varnishd is already running (pid=%jd)\n",
+		    (intmax_t)pid);
+	if (pfh1 == NULL)
+		ARGV_ERR("Could not open pid-file (%s): %s\n",
+		    VSB_data(vsb), strerror(errno));
+	VSB_destroy(&vsb);
+	if (P_arg) {
+		pfh2 = VPF_Open(P_arg, 0644, &pid);
+		if (pfh2 == NULL && errno == EEXIST)
+			ARGV_ERR("Varnishd is already running (pid=%jd)\n",
+			    (intmax_t)pid);
+		if (pfh2 == NULL)
+			ARGV_ERR("Could not open pid-file (%s): %s\n",
+			    P_arg, strerror(errno));
+	}
 	VJ_master(JAIL_MASTER_LOW);
 
 	/* If no -s argument specified, process default -s argument */
@@ -836,6 +848,8 @@ main(int argc, char * const *argv)
 
 	mgt_SHM_Init();
 
+	mgt_SHM_static_alloc(i_arg, strlen(i_arg) + 1L, "Arg", "-i", "-i");
+
 	if (M_arg != NULL)
 		mgt_cli_master(M_arg);
 	if (T_arg != NULL)
@@ -847,7 +861,8 @@ main(int argc, char * const *argv)
 		S_arg = make_secret(dirname);
 	AN(S_arg);
 
-	assert(pfh == NULL || !VPF_Write(pfh));
+	assert(!VPF_Write(pfh1));
+	assert(pfh2 == NULL || !VPF_Write(pfh2));
 
 	MGT_Complain(C_DEBUG, "Platform: %s", VSB_data(vident) + 1);
 
@@ -924,7 +939,8 @@ main(int argc, char * const *argv)
 		MGT_Complain(C_ERR, "vev_schedule() = %d", o);
 
 	MGT_Complain(C_INFO, "manager dies");
-	if (pfh != NULL)
-		(void)VPF_Remove(pfh);
+	(void)VPF_Remove(pfh1);
+	if (pfh2 != NULL)
+		(void)VPF_Remove(pfh2);
 	exit(exit_status);
 }

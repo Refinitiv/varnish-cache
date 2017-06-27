@@ -697,6 +697,15 @@ PARAM(
 	/* func */	NULL
 )
 
+#if defined(XYZZY)
+  #error "Temporary macro XYZZY already defined"
+#endif
+
+#if defined(SO_SNDTIMEO_WORKS)
+  #define XYZZY DELAYED_EFFECT
+#else
+  #define XYZZY NOT_IMPLEMENTED
+#endif
 PARAM(
 	/* name */	idle_send_timeout,
 	/* typ */	timeout,
@@ -704,15 +713,17 @@ PARAM(
 	/* max */	NULL,
 	/* default */	"60.000",
 	/* units */	"seconds",
-	/* flags */	DELAYED_EFFECT,
+	/* flags */	XYZZY,
 	/* s-text */
-	"Time to wait with no data sent. If no data has been transmitted "
-	"in this many\n"
-	"seconds the session is closed.\n"
-	"See setsockopt(2) under SO_SNDTIMEO for more information.",
+	"Send timeout for individual pieces of data on client connections."
+	" May get extended if 'send_timeout' applies.\n\n"
+	"When this timeout is hit, the session is closed.\n\n"
+	"See the man page for `setsockopt(2)` under ``SO_SNDTIMEO`` for more"
+	" information.",
 	/* l-text */	"",
 	/* func */	NULL
 )
+#undef XYZZY
 
 PARAM(
 	/* name */	listen_depth,
@@ -952,6 +963,15 @@ PARAM(
 	/* func */	NULL
 )
 
+#if defined(XYZZY)
+  #error "Temporary macro XYZZY already defined"
+#endif
+
+#if defined(SO_SNDTIMEO_WORKS)
+  #define XYZZY DELAYED_EFFECT
+#else
+  #define XYZZY NOT_IMPLEMENTED
+#endif
 PARAM(
 	/* name */	send_timeout,
 	/* typ */	timeout,
@@ -959,15 +979,18 @@ PARAM(
 	/* max */	NULL,
 	/* default */	"600.000",
 	/* units */	"seconds",
-	/* flags */	DELAYED_EFFECT,
+	/* flags */	XYZZY,
 	/* s-text */
-	"Send timeout for client connections. If the HTTP response hasn't "
-	"been transmitted in this many\n"
-	"seconds the session is closed.\n"
-	"See setsockopt(2) under SO_SNDTIMEO for more information.",
+	"Total timeout for ordinary HTTP1 responses. Does not apply to some"
+	" internally generated errors and pipe mode.\n\n"
+	"When 'idle_send_timeout' is hit while sending an HTTP1 response, the"
+	" timeout is extended unless the total time already taken for sending"
+	" the response in its entirety exceeds this many seconds.\n\n"
+	"When this timeout is hit, the session is closed",
 	/* l-text */	"",
 	/* func */	NULL
 )
+#undef XYZZY
 
 #if 0
 /* actual location mgt_param_tbl.c */
@@ -1335,6 +1358,15 @@ PARAM(
 )
 #endif
 
+#if defined(XYZZY)
+  #error "Temporary macro XYZZY already defined"
+#endif
+
+#if defined(SO_RCVTIMEO_WORKS)
+  #define XYZZY 0
+#else
+  #define XYZZY NOT_IMPLEMENTED
+#endif
 PARAM(
 	/* name */	timeout_idle,
 	/* typ */	timeout,
@@ -1342,14 +1374,18 @@ PARAM(
 	/* max */	NULL,
 	/* default */	"5.000",
 	/* units */	"seconds",
-	/* flags */	0,
+	/* flags */	XYZZY,
 	/* s-text */
-	"Idle timeout for client connections.\n"
-	"A connection is considered idle, until we have received the full "
-	"request headers.",
+	"Idle timeout for client connections.\n\n"
+	"A connection is considered idle until we have received the full"
+	" request headers.\n\n"
+	"This parameter is particularly relevant for HTTP1 keepalive "
+	" connections which are closed unless the next request is received"
+	" before this timeout is reached.",
 	/* l-text */	"",
 	/* func */	NULL
 )
+#undef XYZZY
 
 PARAM(
 	/* name */	timeout_linger,

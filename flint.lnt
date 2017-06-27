@@ -8,16 +8,47 @@
 -efile(451, "tbl/*.h")		// No include guard
 -efile(537, "tbl/*.h")		// Repeated include
 
+-efile(451, "../../include/vut_options.h")		// No include guard
+-efile(451, "../../include/vapi/vapi_options.h")	// No include guard
+
 -efile(451, ../../config.h)	// No include guard
 -efile(766, ../../config.h)	// Header file '___' not used in module '___'
 
 +libh(../../config.h)
 
 ///////////////////////////////////////////////////////////////////////
+// Thread/locking, too many false positives still
+-e454		// A thread mutex has been locked but not unlocked___
+-e455		// A thread mutex that had not been locked is being unlocked
+-e456		// Two execution paths are being combined with different mutex lock states
+-e457		// unprotected write access
+-e458		// unprotected access
+-e459		// unprotected access
+
+///////////////////////////////////////////////////////////////////////
 // General stylistic issues
--e726		// Extraneous comma ignored
+-e574		// Signed-unsigned mix with relational
 -e641		// Converting enum '...' to int
+-e716		// while(1) ...
+-e726		// Extraneous comma ignored
+-e728		// Symbol ... not explicitly initialized
+-e737		// Loss of sign in promotion from int to unsigned int
 -e763		// Redundant declaration for symbol '...' previously declared
+-e777		// Testing floats for equality
+-e785		// Too few initializers for aggregate
+-e786		// String concatenation within initializer
+
+-esym(818, argv)	// Pointer parameter '...' could be declared as pointing to const
+
+/*
+ * va_list's are opaque for a reason, but we pretend to FlexeLint that it
+ * is just a void*, so it proposes constification, which is not generally OK,
+ * for instance on register-spilling architectures.
+ * XXX: Maybe 'ap' is a badly chosen conventional name here...
+ */
+-esym(818, ap)		// Pointer parameter '...' could be declared as pointing to const
+
+-efunc(789, main)	// Assigning address of auto variable '...' to static
 
 // +e958		// padding
 
@@ -29,6 +60,7 @@
 // ignore retval
 -esym(534, printf)
 -esym(534, fprintf)
+-esym(534, vfprintf)
 -esym(534, sprintf)
 
 -esym(534, memset)
@@ -53,6 +85,16 @@
 -emacro(731, xxxassert)		// arg to eq/non-eq
 -emacro(527, WRONG)		// unreachable code
 -emacro(774, VALID_OBJ)		// boolean always true
+
+///////////////////////////////////////////////////////////////////////
+// Places where we use x<<0 for reasons of symmetry
+
+-emacro(835, VCT_SP)		// A zero has been given as ___ argument to operator '___'
+-emacro(835, VSL_COPT_TAIL)	// A zero has been given as ___ argument to operator '___'
+-emacro(835, SLT_F_UNUSED)	// A zero has been given as ___ argument to operator '___'
+-emacro(835, ARGV_COMMENT)	// A zero has been given as ___ argument to operator '___'
+-emacro(835, F_SEEN_ixIX)	// A zero has been given as ___ argument to operator '___'
+-emacro(835, VEX_OPT_CASELESS)	// A zero has been given as ___ argument to operator '___'
 
 ///////////////////////////////////////////////////////////////////////
 // <vsb.h>
@@ -93,14 +135,59 @@
 -emacro(740, VTAILQ_LAST) // Unusual pointer cast (incompatible indirect types)
 -emacro(740, VTAILQ_PREV) // Unusual pointer cast (incompatible indirect types)
 
+-esym(754, "*::vtqh_first")	// local struct member '...' not referenced
+
 ///////////////////////////////////////////////////////////////////////
 // <vdef.h>
 -emacro(527, NEEDLESS)	// unreachable code
 
 ///////////////////////////////////////////////////////////////////////
+// <libvarnishapi>
 
+-esym(765, vsl_vbm_bitclr)
+-esym(759, vsl_vbm_bitclr)
+-esym(765, vsl_vbm_bitset)
+-esym(759, vsl_vbm_bitset)
+-esym(765, vsm_diag)
+-esym(759, vsm_diag)
+
+///////////////////////////////////////////////////////////////////////
+// "miniobj.h"
+
+-emacro(774, REPLACE)
+
+
+// It is ok to default after handling a few select SLT_* tags
+-esym(788, VSL_tag_e::SLT_*)	//  enum constant '...' not used within defaulted switch
 
 -esym(785,VSL_tags)				// Sparse array
+
+///////////////////////////////////////////////////////////////////////
+// -lcurses
+-esym(534, beep)
+-esym(534, curs_set)
+-esym(534, delwin)
+-esym(534, doupdate)
+-esym(534, endwin)
+-esym(534, initscr)
+-esym(534, intrflush)
+-esym(534, keypad)
+-esym(534, mvprintw)
+-esym(534, mvwprintw)
+-esym(534, nodelay)
+-esym(534, noecho)
+-esym(534, nonl)
+-esym(534, raw)
+-esym(534, waddch)
+-esym(534, wattr_off)
+-esym(534, wattr_on)
+-esym(534, wbkgd)
+-esym(534, werase)
+-esym(534, wmove)
+-esym(534, wnoutrefresh)
+-esym(534, wprintw)
+-esym(534, wredrawln)
+-esym(534, wrefresh)
 
 ///////////////////////////////////////////////////////////////////////
 // Noise reduction, review periodically
@@ -110,4 +197,3 @@
 -e712	// Loss of precision (___) (___ to ___)
 -e732	// Loss of sign (___) (___ to ___)
 -e747	// Significant prototype coercion (___) ___ to ___
-

@@ -41,8 +41,15 @@
 #define VCT_XMLNAMESTART	(1<<7)
 #define VCT_XMLNAME		(1<<8)
 #define VCT_TCHAR		(1<<9)
+#define VCT_ID			(1<<10)
+#define VCT_IDENT		(VCT_ALPHA | VCT_DIGIT | VCT_ID)
+#define VCT_VAR			(1<<11)
+#define VCT_VT			(1<<12)
+#define VCT_SPACE		(VCT_LWS | VCT_VT)
 
 extern const uint16_t vct_typtab[256];
+
+const char *VCT_invalid_name(const char *b, const char *e);
 
 static inline int
 vct_is(int x, uint16_t y)
@@ -56,15 +63,20 @@ vct_is(int x, uint16_t y)
 #define vct_ishex(x) vct_is(x, VCT_HEX)
 #define vct_islws(x) vct_is(x, VCT_LWS)
 #define vct_isctl(x) vct_is(x, VCT_CTL)
+#define vct_isspace(x) vct_is(x, VCT_SPACE)
 #define vct_isdigit(x) vct_is(x, VCT_DIGIT)
 #define vct_isalpha(x) vct_is(x, VCT_ALPHA)
+#define vct_isalnum(x) vct_is(x, VCT_ALPHA | VCT_DIGIT)
 #define vct_issep(x) vct_is(x, VCT_SEPARATOR)
 #define vct_issepctl(x) vct_is(x, VCT_SEPARATOR | VCT_CTL)
+#define vct_isident1(x) vct_isalpha(x)
+#define vct_isident(x) vct_is(x, VCT_IDENT)
+#define vct_isvar(x) vct_is(x, VCT_IDENT | VCT_VAR)
 #define vct_isxmlnamestart(x) vct_is(x, VCT_XMLNAMESTART)
 #define vct_isxmlname(x) vct_is(x, VCT_XMLNAMESTART | VCT_XMLNAME)
 #define vct_istchar(x) vct_is(x, VCT_ALPHA | VCT_DIGIT | VCT_TCHAR)
 
-#define vct_iscrlf(p) (((p)[0] == '\r' && (p)[1] == '\n') || (p)[0] == '\n')
+#define vct_iscrlf(p) (((p)[0] == 0x0d && (p)[1] == 0x0a) || (p)[0] == 0x0a)
 
 /* NB: VCT always operate in ASCII, don't replace 0x0d with \r etc. */
 #define vct_skipcrlf(p) ((p)[0] == 0x0d && (p)[1] == 0x0a ? 2 : 1)

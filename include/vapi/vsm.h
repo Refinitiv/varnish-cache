@@ -36,61 +36,59 @@
 #ifndef VAPI_VSM_H_INCLUDED
 #define VAPI_VSM_H_INCLUDED
 
-#include "vsm_int.h"
-
 struct VSM_chunk;
-struct VSM_data;
+struct vsm;
 
 /*
  * This structure is used to reference a VSM chunk
  */
 
-struct VSM_fantom {
+struct vsm_fantom {
 	struct VSM_chunk	*chunk;
 	void			*b;		/* first byte of payload */
 	void			*e;		/* first byte past payload */
 	uintptr_t		priv;		/* VSM private */
-	char			class[VSM_MARKER_LEN];
-	char			type[VSM_MARKER_LEN];
-	char			ident[VSM_IDENT_LEN];
+	char			*class;
+	char			*type;
+	char			*ident;
 };
 
-#define VSM_FANTOM_NULL { 0, 0, 0, 0, {0}, {0}, {0} }
+#define VSM_FANTOM_NULL { 0, 0, 0, 0, 0, 0, 0 }
 
 /*---------------------------------------------------------------------
  * VSM level access functions
  */
 
-struct VSM_data *VSM_New(void);
+struct vsm *VSM_New(void);
 	/*
 	 * Allocate and initialize a VSL_data handle structure.
 	 * This is the first thing you will have to do, always.
-	 * You can have multiple active VSM_data handles at the same time
+	 * You can have multiple active vsm handles at the same time
 	 * referencing the same or different shared memory files.
 	 * Returns:
 	 *	Pointer to usable VSL_data handle.
 	 *	NULL: malloc failed.
 	 */
 
-void VSM_Delete(struct VSM_data *vd);
+void VSM_Delete(struct vsm *vd);
 	/*
 	 * Close and deallocate all storage and mappings.
 	 * (including any VSC and VSL "sub-classes")
 	 */
 
-const char *VSM_Error(const struct VSM_data *vd);
+const char *VSM_Error(const struct vsm *vd);
 	/*
 	 * Return the latest error message.
 	 */
 
-void VSM_ResetError(struct VSM_data *vd);
+void VSM_ResetError(struct vsm *vd);
 	/*
 	 * Reset any error message.
 	 */
 
 #define VSM_n_USAGE	"[-n varnish_name]"
 
-int VSM_n_Arg(struct VSM_data *vd, const char *n_arg);
+int VSM_n_Arg(struct vsm *vd, const char *n_arg);
 	/*
 	 * Configure which varnishd instance to access.
 	 * Uses hostname if n_arg is NULL or "".
@@ -100,24 +98,12 @@ int VSM_n_Arg(struct VSM_data *vd, const char *n_arg);
 	 *	 <0 on failure, VSM_Error() returns diagnostic string
 	 */
 
-#define VSM_N_USAGE	"[-N filename]"
-
-int VSM_N_Arg(struct VSM_data *vd, const char *N_arg);
+const char *VSM_Name(const struct vsm *vd);
 	/*
-	 * Configure the library to use the specified VSM file name. This
-	 * bypasses abandonment checks and allows looking at stale VSM
-	 * files without a running Varnish instance.
-	 *
-	 * Returns:
-	 *	1 on success
+	 * Return the instance name (-i argument to varnishd)
 	 */
 
-const char *VSM_Name(const struct VSM_data *vd);
-	/*
-	 * Return the instance name.
-	 */
-
-int VSM_Open(struct VSM_data *vd);
+int VSM_Open(struct vsm *vd);
 	/*
 	 * Attempt to open and map the VSM file.
 	 *
@@ -126,7 +112,7 @@ int VSM_Open(struct VSM_data *vd);
 	 *	<0 on failure, VSM_Error() returns diagnostic string
 	 */
 
-int VSM_IsOpen(const struct VSM_data *vd);
+int VSM_IsOpen(const struct vsm *vd);
 	/*
 	 * Check if the VSM is open.
 	 *
@@ -135,7 +121,7 @@ int VSM_IsOpen(const struct VSM_data *vd);
 	 *       0: Is closed
 	 */
 
-int VSM_Abandoned(struct VSM_data *vd);
+int VSM_Abandoned(struct vsm *vd);
 	/*
 	 * Find out if the VSM file has been abandoned or closed and should
 	 * be reopened.  This function calls stat(2) and should only be
@@ -147,7 +133,7 @@ int VSM_Abandoned(struct VSM_data *vd);
 	 *	1  VSM abandoned.
 	 */
 
-void VSM_Close(struct VSM_data *vd);
+void VSM_Close(struct vsm *vd);
 	/*
 	 * Close and unmap shared memory, if open. Any reference to
 	 * previously returned memory areas will cause segmentation
@@ -156,27 +142,32 @@ void VSM_Close(struct VSM_data *vd);
 	 */
 
 
-void VSM__iter0(const struct VSM_data *vd, struct VSM_fantom *vf);
-int VSM__itern(const struct VSM_data *vd, struct VSM_fantom *vf);
+void VSM__iter0(const struct vsm *vd, struct vsm_fantom *vf);
+int VSM__itern(const struct vsm *vd, struct vsm_fantom *vf);
 
 #define VSM_FOREACH(vf, vd) \
     for (VSM__iter0((vd), (vf)); VSM__itern((vd), (vf));)
 	/*
 	 * Iterate over all chunks in shared memory
-	 * vf = "struct VSM_fantom *"
-	 * vd = "struct VSM_data *"
+	 * vf = "struct vsm_fantom *"
+	 * vd = "struct vsm *"
 	 */
 
-enum VSM_valid_e {
-	VSM_invalid,
-	VSM_valid,
-	VSM_similar,
+int VSM_Map(struct vsm *vd, struct vsm_fantom *vf);
+int VSM_Unmap(struct vsm *vd, struct vsm_fantom *vf);
+
+struct vsm_valid {
+	const char *name;
 };
 
-enum VSM_valid_e VSM_StillValid(const struct VSM_data *vd,
-    struct VSM_fantom *vf);
+extern const struct vsm_valid VSM_invalid[];
+extern const struct vsm_valid VSM_valid[];
+extern const struct vsm_valid VSM_similar[];
+
+const struct vsm_valid *VSM_StillValid(const struct vsm *vd,
+    struct vsm_fantom *vf);
 	/*
-	 * Check the validity of a previously looked up VSM_fantom.
+	 * Check the validity of a previously looked up vsm_fantom.
 	 *
 	 * VSM_invalid means that the SHM chunk this fantom points to does
 	 * not exist in the log file any longer. Using the fantom's
@@ -205,12 +196,12 @@ enum VSM_valid_e VSM_StillValid(const struct VSM_data *vd,
 	 *   VSM_similar: a fantom with same dimensions exist in same position.
 	 */
 
-int VSM_Get(const struct VSM_data *vd, struct VSM_fantom *vf,
-    const char *class, const char *type, const char *ident);
+int VSM_Get(const struct vsm *vd, struct vsm_fantom *vf,
+    const char *class, const char *ident);
 	/*
 	 * Find a chunk, produce fantom for it.
 	 * Returns zero on failure.
-	 * class is mandatory, type and ident optional.
+	 * class is mandatory, ident optional.
 	 */
 
 #endif /* VAPI_VSM_H_INCLUDED */

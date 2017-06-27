@@ -28,7 +28,6 @@
 
 #include "config.h"
 
-#include <sys/types.h>
 #include <sys/socket.h>
 
 #include <errno.h>
@@ -46,11 +45,10 @@
 #include "vfil.h"
 #include "vgz.h"
 #include "vnum.h"
-#include "vre.h"
 #include "vtcp.h"
 #include "hpack.h"
 
-static const struct cmds http_cmds[];
+extern const struct cmds http_cmds[];
 
 /* SECTION: client-server client/server
  *
@@ -345,13 +343,9 @@ static void
 cmd_http_expect(CMD_ARGS)
 {
 	struct http *hp;
-	const char *lhs, *clhs;
+	const char *lhs;
 	char *cmp;
-	const char *rhs, *crhs;
-	vre_t *vre;
-	const char *error;
-	int erroroffset;
-	int i, retval = -1;
+	const char *rhs;
 
 	(void)cmd;
 	(void)vl;
@@ -367,41 +361,7 @@ cmd_http_expect(CMD_ARGS)
 	cmp = av[1];
 	rhs = cmd_var_resolve(hp, av[2]);
 
-	clhs = lhs ? lhs : "<undef>";
-	crhs = rhs ? rhs : "<undef>";
-
-	if (!strcmp(cmp, "~") || !strcmp(cmp, "!~")) {
-		vre = VRE_compile(crhs, 0, &error, &erroroffset);
-		if (vre == NULL)
-			vtc_fatal(hp->vl, "REGEXP error: %s (@%d) (%s)",
-			    error, erroroffset, crhs);
-		i = VRE_exec(vre, clhs, strlen(clhs), 0, 0, NULL, 0, 0);
-		retval = (i >= 0 && *cmp == '~') || (i < 0 && *cmp == '!');
-		VRE_free(&vre);
-	} else if (!strcmp(cmp, "==")) {
-		retval = strcmp(clhs, crhs) == 0;
-	} else if (!strcmp(cmp, "!=")) {
-		retval = strcmp(clhs, crhs) != 0;
-	} else if (lhs == NULL || rhs == NULL) {
-		// fail inequality comparisons if either side is undef'ed
-		retval = 0;
-	} else if (!strcmp(cmp, "<")) {
-		retval = isless(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, ">")) {
-		retval = isgreater(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, "<=")) {
-		retval = islessequal(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, ">=")) {
-		retval = isgreaterequal(VNUM(lhs), VNUM(rhs));
-	}
-
-	if (retval == -1)
-		vtc_fatal(hp->vl,
-		    "EXPECT %s (%s) %s %s (%s) test not implemented",
-		    av[0], clhs, av[1], av[2], crhs);
-	else
-		vtc_log(hp->vl, retval ? 4 : 0, "EXPECT %s (%s) %s \"%s\" %s",
-		    av[0], clhs, cmp, crhs, retval ? "match" : "failed");
+	vtc_expect(vl, av[0], lhs, cmp, av[2], rhs);
 }
 
 static void
@@ -1675,7 +1635,11 @@ cmd_http_fatal(CMD_ARGS)
  *	Same as for the top-level barrier
  */
 
-static const char PREFACE[24] = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+static const char PREFACE[24] = {
+	0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54,
+	0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a,
+	0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a
+};
 
 /* SECTION: client-server.spec.txpri
  *
@@ -1815,7 +1779,7 @@ cmd_http_write_body(CMD_ARGS)
  * Execute HTTP specifications
  */
 
-static const struct cmds http_cmds[] = {
+const struct cmds http_cmds[] = {
 #define CMD(n) { #n, cmd_##n },
 #define CMD_HTTP(n) { #n, cmd_http_##n },
 	/* session */

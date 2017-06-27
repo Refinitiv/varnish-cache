@@ -28,12 +28,13 @@
  *
  */
 
+#include "config.h"
+
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "vdef.h"
 #include "vas.h"
@@ -1247,14 +1248,14 @@ vslq_next(struct VSLQ *vslq)
 	if (i != 1)
 		return (i);
 
-	tag = VSL_TAG(c->rec.ptr);
+	tag = (enum VSL_tag_e)VSL_TAG(c->rec.ptr);
 	if (tag == SLT__Batch) {
 		vxid = VSL_BATCHID(c->rec.ptr);
 		len = VSL_END(c->rec.ptr, VSL_BATCHLEN(c->rec.ptr)) -
 		    c->rec.ptr;
 		if (len == 0)
 			return (i);
-		tag = VSL_TAG(VSL_NEXT(c->rec.ptr));
+		tag = (enum VSL_tag_e)VSL_TAG(VSL_NEXT(c->rec.ptr));
 	} else {
 		vxid = VSL_ID(c->rec.ptr);
 		len = VSL_NEXT(c->rec.ptr) - c->rec.ptr;

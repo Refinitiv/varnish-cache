@@ -30,13 +30,10 @@
 
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,9 +46,7 @@
 #include "vev.h"
 #include "vfil.h"
 #include "vnum.h"
-#include "vqueue.h"
 #include "vrnd.h"
-#include "vsa.h"
 #include "vss.h"
 #include "vsub.h"
 #include "vtcp.h"
@@ -146,7 +141,6 @@ usage(void)
 	fprintf(stderr, FMT, "-t duration", "Time tests out after this long");
 	fprintf(stderr, FMT, "-v", "Verbose mode: always report test log");
 	fprintf(stderr, FMT, "-W", "Enable the witness facility for locking");
-	fprintf(stderr, "\n");
 	exit(1);
 }
 
@@ -492,7 +486,7 @@ ip_magic(void)
 	 * XXX: "localhost", but that doesn't work out of the box.
 	 * XXX: Things like "prefer_ipv6" parameter complicates things.
 	 */
-	fd = VSS_resolver("127.0.0.1", NULL, &bind_cb, NULL, &p);
+	fd = VSS_resolver("127.0.0.1", NULL, bind_cb, NULL, &p);
 	assert(fd >= 0);
 	VTCP_myname(fd, abuf, sizeof abuf, pbuf, sizeof(pbuf));
 	extmacro_def("localhost", "%s", abuf);
@@ -533,6 +527,8 @@ read_file(const char *fn, int ntest)
 		if (*q != '#')
 			break;
 		q = strchr(q, '\n');
+		if (q == NULL)
+			break;
 	}
 
 	if (q == NULL || *q == '\0') {
@@ -567,6 +563,7 @@ main(int argc, char * const *argv)
 	int ch, i;
 	int ntest = 1;			/* Run tests this many times */
 	uintmax_t bufsiz;
+	const char *p;
 
 	if (getenv("TMPDIR") != NULL)
 		tmppath = strdup(getenv("TMPDIR"));
@@ -580,8 +577,9 @@ main(int argc, char * const *argv)
 
 	params_vsb = VSB_new_auto();
 	AN(params_vsb);
-	if (getenv("VARNISHTEST_DURATION"))
-		vtc_maxdur = atoi(getenv("VARNISHTEST_DURATION"));
+	p = getenv("VARNISHTEST_DURATION");
+	if (p != NULL)
+		vtc_maxdur = atoi(p);
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -650,7 +648,10 @@ main(int argc, char * const *argv)
 	argc -= optind;
 	argv += optind;
 
-	for (;argc > 0; argc--, argv++) {
+	if (argc < 1)
+		usage();
+
+	for (; argc > 0; argc--, argv++) {
 		if (!read_file(*argv, ntest))
 			continue;
 		if (!vtc_continue)

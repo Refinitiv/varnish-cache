@@ -26,20 +26,17 @@
 -esym(534, vsb_vprintf)	// Ignoring return value of function
 -esym(534, memset)	// Ignoring return value of function
 -e788			// enum constant 'HND_Unclass' not used within defaulted switch
--e716			// while(1) ...
--e786			// String concatenation within initializer
 -e732			// Loss of sign (arg. no. 2) (int to unsigned int)
 
+-emacro(835, EXPR_VAR)	// // Info 835: A zero has been given as right argument to operator '<<'
 
 -e763	// Redundant declaration for symbol '...' previously declared
 
 
--e737	// Loss of sign in promotion from int to unsigned int
 -e534	// Ignoring return value of function
 -e506	// Constant value boolean
 -e774	// Boolean within 'if' always evaluates to False
 -e713	// Loss of precision (assignment) (unsigned long long to long long)
--e574	// Signed-unsigned mix with relational
 -e539	// Did not expect positive indentation
 -e734	// Loss of precision (assignment) (31 bits to 8 bits)
 -e747	// Significant prototype coercion (arg. no. 2) long

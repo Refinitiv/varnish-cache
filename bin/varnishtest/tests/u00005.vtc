@@ -13,23 +13,21 @@ varnish v1 -vcl+backend {} -start
 delay 1
 
 process p1 {varnishstat -1 -n ${v1_name} -f ^LCK.vbe.destroy \
-	-f LCK.vbe.* -f LCK.mempool.* | tr '[1-9]' '0'} -run
+	-f LCK.vbe.* -f LCK.mempool.creat | tr '[1-9]' '0'} -run
 
 shell "grep -q vbe ${p1_out}"
-shell "grep -q mempool ${p1_out}"
+shell "grep -q LCK.mempool.creat ${p1_out}"
 shell -err "grep -q LCK.vbe.destroy ${p1_out}"
 
-process p2 {varnishstat -1 -n ${v1_name} -f ^*vbe.destroy \
-	-f *vbe* -f *mempool* | tr '[1-9]' '0'} -run
-
-shell "grep -q vbe ${p2_out}"
-shell "grep -q mempool ${p2_out}"
-shell -err "grep -q LCK.vbe.destroy ${p2_out}"
+process p2 {varnishstat -1 -n ${v1_name} -f *vbe* \
+	-f ^*vbe.destroy -f LCK.mempool.c* | tr '[1-9]' '0'} -run
 
 shell "cmp -s ${p1_out} ${p2_out}"
 
-shell -expect "cache_hit" \
-	"varnishstat -1 -n ${v1_name} -f MAIN.cache_hit"
+shell -expect "MGT.uptime" \
+	"varnishstat -1 -n ${v1_name} -f ^MAIN*"
+shell -match "^MGT" \
+	"varnishstat -1 -n ${v1_name} -f ^foo"
 
 shell -expect "Usage: varnishstat <options>" \
 	"varnishstat -h"
@@ -39,11 +37,15 @@ shell -expect "Copyright (c) 2006 Verdens Gang AS" \
 	"varnishstat -V"
 shell -err -expect "Usage: varnishstat <options>" \
 	"varnishstat extra"
+shell -err -expect "-t: Range error" \
+	"varnishstat -t -1"
+shell -err -expect "-t: Syntax error" \
+	"varnishstat -t foo"
 shell -err -expect "Cannot open /nonexistent/_.vsm" \
-	"varnishstat -n /nonexistent"
+	"varnishstat -n /nonexistent -t 1"
 shell -expect "MAIN.uptime" \
 	"varnishstat -n ${v1_name} -1"
-shell -expect "<type>MAIN</type>" \
+shell -expect "<name>MAIN.uptime</name>" \
 	"varnishstat -n ${v1_name} -x"
-shell -expect "MAIN.uptime\":" \
+shell -match {"MAIN.uptime":} \
 	"varnishstat -n ${v1_name} -j"

@@ -29,12 +29,13 @@
 
 #include "config.h"
 
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "vcc_compile.h"
+
+#include "vct.h"
 
 /*--------------------------------------------------------------------*/
 
@@ -300,8 +301,9 @@ vcc_ExpectCid(struct vcc *tl, const char *what)
 
 	ExpectErr(tl, ID);
 	ERRCHK(tl);
+	/* XXX: too soon to use vct_invalid_name() */
 	for (q = tl->t->b; q < tl->t->e; q++) {
-		if (!isalnum(*q) && *q != '_') {
+		if (!vct_isalnum(*q) && *q != '_') {
 			VSB_printf(tl->sb, "Name of %s, ", what);
 			vcc_ErrToken(tl, tl->t);
 			VSB_printf(tl->sb,
@@ -368,7 +370,7 @@ vcc_Lexer(struct vcc *tl, struct source *sp)
 	for (p = sp->b; p < sp->e; ) {
 
 		/* Skip any whitespace */
-		if (isspace(*p)) {
+		if (vct_isspace(*p)) {
 			p++;
 			continue;
 		}
@@ -488,9 +490,9 @@ vcc_Lexer(struct vcc *tl, struct source *sp)
 		}
 
 		/* Match Identifiers */
-		if (isident1(*p)) {
+		if (vct_isident1(*p)) {
 			for (q = p; q < sp->e; q++)
-				if (!isvar(*q))
+				if (!vct_isvar(*q))
 					break;
 			vcc_AddToken(tl, ID, p, q);
 			p = q;
@@ -498,9 +500,9 @@ vcc_Lexer(struct vcc *tl, struct source *sp)
 		}
 
 		/* Match numbers { [0-9]+ } */
-		if (isdigit(*p)) {
+		if (vct_isdigit(*p)) {
 			for (q = p; q < sp->e; q++)
-				if (!isdigit(*q))
+				if (!vct_isdigit(*q))
 					break;
 			vcc_AddToken(tl, CNUM, p, q);
 			p = q;

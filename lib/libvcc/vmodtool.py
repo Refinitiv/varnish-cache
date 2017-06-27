@@ -756,7 +756,8 @@ class vcc(object):
 		fo.write("/*lint -restore */\n")
 
 	def api(self, fo):
-		fo.write("\n/*lint -esym(759, Vmod_%s_Data) */\n" % (self.modname))
+		for i in (714, 759, 765):
+			fo.write("\n/*lint -esym(%d, Vmod_%s_Data) */\n" % (i, self.modname))
 		fo.write("const struct vmod_data Vmod_%s_Data = {\n" %
 		    self.modname)
 		fo.write("\t.vrt_major =\tVRT_MAJOR_VERSION,\n")
@@ -811,7 +812,7 @@ class vcc(object):
 
 		self.cstruct(fx, "struct " + csn)
 
-		fo.write("\n/*lint -esym(754, Vmod_debug_Func::*) */\n")
+		fo.write("\n/*lint -esym(754, Vmod_" + self.modname + "_Func::*) */\n")
 		self.cstruct_init(fo, "struct " + csn)
 
 		fx.close()

@@ -26,7 +26,8 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
+#include "config.h"
+
 #include <sys/socket.h>
 
 #include <netinet/in.h>

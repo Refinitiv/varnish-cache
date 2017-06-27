@@ -31,7 +31,6 @@
 
 #include "config.h"
 
-#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -71,10 +70,6 @@ unsigned mgt_vcc_unsafe_path;
 #define VGC_LIB		"vgc.so"
 
 /*--------------------------------------------------------------------*/
-
-static const char * const builtin_vcl =
-#include "builtin_vcl.h"
-    ""	;
 
 void
 mgt_DumpBuiltin(void)

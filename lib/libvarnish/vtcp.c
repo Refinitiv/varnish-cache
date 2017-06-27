@@ -32,7 +32,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
 #ifdef HAVE_SYS_FILIO_H
 #  include <sys/filio.h>
 #endif
@@ -45,7 +44,6 @@
 #include <netdb.h>
 #include <poll.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -578,6 +576,13 @@ VTCP_Check(int a)
 	 * This is a bug in Solaris and documented behaviour on NetBSD.
 	 */
 	if (errno == EINVAL || errno == ETIMEDOUT || errno == EPIPE)
+		return (1);
+#elif defined (__APPLE__)
+	/*
+	 * MacOS returns EINVAL if the other end unexpectedly reset
+	 * the connection.
+	 */
+	if (errno == EINVAL)
 		return (1);
 #endif
 	return (0);

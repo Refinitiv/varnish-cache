@@ -114,30 +114,23 @@ mcf_vcl_byname(const char *name)
 }
 
 static int
-mcf_bad_vclname(struct cli *cli, const char *name)
+mcf_invalid_vclname(struct cli *cli, const char *name)
 {
-	const char *p;
-	int bad = 0;
+	const char *bad;
 
 	AN(name);
-	p = name;
-	if (!vct_isalpha(*p))
-		bad = *p;
-	for (p++; bad == 0 && *p != '\0'; p++)
-		if (!vct_isalpha(*p) &&
-		    !vct_isdigit(*p) &&
-		    *p != '_' &&
-		    *p != '-')
-			bad = *p;
-	if (bad) {
+	bad = VCT_invalid_name(name, NULL);
+
+	if (bad != NULL) {
 		VCLI_SetResult(cli, CLIS_PARAM);
 		VCLI_Out(cli, "Illegal character in VCL name ");
-		if (bad > 0x20 && bad < 0x7f)
-			VCLI_Out(cli, "('%c')", bad);
+		if (*bad > 0x20 && *bad < 0x7f)
+			VCLI_Out(cli, "('%c')", *bad);
 		else
-			VCLI_Out(cli, "(0x%02x)", bad & 0xff);
+			VCLI_Out(cli, "(0x%02x)", *bad & 0xff);
+		return (-1);
 	}
-	return (bad);
+	return (0);
 }
 
 static struct vclprog *
@@ -145,7 +138,7 @@ mcf_find_vcl(struct cli *cli, const char *name)
 {
 	struct vclprog *vp;
 
-	if (mcf_bad_vclname(cli, name))
+	if (mcf_invalid_vclname(cli, name))
 		return (NULL);
 
 	vp = mcf_vcl_byname(name);
@@ -160,7 +153,7 @@ static int
 mcf_find_no_vcl(struct cli *cli, const char *name)
 {
 
-	if (mcf_bad_vclname(cli, name))
+	if (mcf_invalid_vclname(cli, name))
 		return (0);
 
 	if (mcf_vcl_byname(name) != NULL) {
@@ -272,7 +265,8 @@ mgt_vcl_del(struct vclprog *vp)
 		FREE_OBJ(vd);
 
 		if (VTAILQ_EMPTY(&vf->vcls)) {
-			AZ(unlink(vf->fname));
+			if (!MGT_DO_DEBUG(DBG_VMOD_SO_KEEP))
+				AZ(unlink(vf->fname));
 			VTAILQ_REMOVE(&vmodhead, vf, list);
 			free(vf->fname);
 			FREE_OBJ(vf);
@@ -790,9 +784,9 @@ mcf_vcl_label(struct cli *cli, const char * const *av, void *priv)
 	int i;
 
 	(void)priv;
-	if (mcf_bad_vclname(cli, av[2]))
+	if (mcf_invalid_vclname(cli, av[2]))
 		return;
-	if (mcf_bad_vclname(cli, av[3]))
+	if (mcf_invalid_vclname(cli, av[3]))
 		return;
 	vpt = mcf_find_vcl(cli, av[3]);
 	if (vpt == NULL)

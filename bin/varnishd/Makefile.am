@@ -52,8 +52,8 @@ varnishd_SOURCES = \
 	cache/cache_vrt_vmod.c \
 	cache/cache_wrk.c \
 	cache/cache_ws.c \
-	common/common_vsm.c \
 	common/common_vsc.c \
+	common/common_vsm.c \
 	hash/hash_classic.c \
 	hash/hash_critbit.c \
 	hash/mgt_hash.c \
@@ -109,8 +109,11 @@ varnishd_SOURCES = \
 	waiter/cache_waiter_poll.c \
 	waiter/cache_waiter_ports.c
 
+nodist_varnishd_SOURCES = \
+	builtin_vcl.c
+
 noinst_HEADERS = \
-	builtin_vcl.h \
+	VSC_main.h \
 	cache/cache_ban.h \
 	cache/cache_esi.h \
 	cache/cache_obj.h \
@@ -118,6 +121,7 @@ noinst_HEADERS = \
 	cache/cache_priv.h \
 	cache/cache_transport.h \
 	common/heritage.h \
+	common/common_vsm.h \
 	hash/hash_slinger.h \
 	hpack/vhp.h \
 	http1/cache_http1.h \
@@ -163,19 +167,22 @@ varnishd_LDADD = \
 
 noinst_PROGRAMS = vhp_gen_hufdec
 vhp_gen_hufdec_SOURCES = hpack/vhp_gen_hufdec.c
-vhp_gen_hufdec_CFLAGS = -include config.h
+vhp_gen_hufdec_CFLAGS = @SAN_CFLAGS@ \
+			-include config.h
 vhp_gen_hufdec_LDADD = \
 	$(top_builddir)/lib/libvarnish/libvarnish.a
 
 noinst_PROGRAMS += vhp_table_test
 vhp_table_test_SOURCES = hpack/vhp_table.c
-vhp_table_test_CFLAGS = -DTABLE_TEST_DRIVER -include config.h
+vhp_table_test_CFLAGS = @SAN_CFLAGS@ \
+			-DTABLE_TEST_DRIVER -include config.h
 vhp_table_test_LDADD = \
 	$(top_builddir)/lib/libvarnish/libvarnish.a
 
 noinst_PROGRAMS += vhp_decode_test
 vhp_decode_test_SOURCES = hpack/vhp_decode.c hpack/vhp_table.c
-vhp_decode_test_CFLAGS = -DDECODE_TEST_DRIVER -include config.h
+vhp_decode_test_CFLAGS = @SAN_CFLAGS@ \
+			 -DDECODE_TEST_DRIVER -include config.h
 vhp_decode_test_LDADD = \
 	$(top_builddir)/lib/libvarnish/libvarnish.a
 
@@ -184,17 +191,20 @@ TESTS = vhp_table_test vhp_decode_test
 #
 # Turn the builtin.vcl file into a C-string we can include in the program.
 #
-builtin_vcl.h:	builtin.vcl
+builtin_vcl.c:	builtin.vcl
 	echo '/*' > $@
 	echo ' * NB:  This file is machine generated, DO NOT EDIT!' >> $@
 	echo ' *' >> $@
 	echo ' * Edit builtin.vcl instead and run make' >> $@
 	echo ' *' >> $@
 	echo ' */' >> $@
+	echo '#include "mgt/mgt.h"' >> $@
 	echo '' >> $@
+	echo 'const char * const builtin_vcl =' >> $@
 	sed -e 's/"/\\"/g' \
 	    -e 's/$$/\\n"/' \
 	    -e 's/^/ "/' $(srcdir)/builtin.vcl >> $@
+	echo ';' >> $@
 
 EXTRA_DIST = builtin.vcl
 
@@ -202,10 +212,84 @@ vhp_hufdec.h: vhp_gen_hufdec
 	$(AM_V_GEN) ./vhp_gen_hufdec > vhp_hufdec.h_
 	mv vhp_hufdec.h_ vhp_hufdec.h
 
-DISTCLEANFILES = builtin_vcl.h
+DISTCLEANFILES = builtin_vcl.c
 
 BUILT_SOURCES	=	vhp_hufdec.h
 DISTCLEANFILES	+=	vhp_hufdec.h
 
-# Explicitly record dependency
-mgt/mgt_vcc.c:	builtin_vcl.h
+#######################################################################
+VSC_main.c VSC_main.h: $(srcdir)/main.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/main.vsc
+
+$(varnishd_OBJECTS):	VSC_main.h
+
+EXTRA_DIST	+=	main.vsc
+DISTCLEANFILES	+=	VSC_main.c VSC_main.h
+nodist_varnishd_SOURCES +=	VSC_main.c
+
+#######################################################################
+
+VSC_lck.c VSC_lck.h: $(srcdir)/lck.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/lck.vsc
+
+$(varnishd_OBJECTS):	VSC_lck.h
+
+EXTRA_DIST	+=	lck.vsc
+DISTCLEANFILES	+=	VSC_lck.c VSC_lck.h
+nodist_varnishd_SOURCES +=	VSC_lck.c
+
+#######################################################################
+
+VSC_vbe.c VSC_vbe.h: $(srcdir)/vbe.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/vbe.vsc
+
+$(varnishd_OBJECTS):	VSC_vbe.h
+
+EXTRA_DIST	+=	vbe.vsc
+DISTCLEANFILES	+=	VSC_vbe.c VSC_vbe.h
+nodist_varnishd_SOURCES +=	VSC_vbe.c
+
+#######################################################################
+
+VSC_sma.c VSC_sma.h: $(srcdir)/sma.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/sma.vsc
+
+$(varnishd_OBJECTS):	VSC_sma.h
+
+EXTRA_DIST	+=	sma.vsc
+DISTCLEANFILES	+=	VSC_sma.c VSC_sma.h
+nodist_varnishd_SOURCES +=	VSC_sma.c
+
+#######################################################################
+
+VSC_smf.c VSC_smf.h: $(srcdir)/smf.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/smf.vsc
+
+$(varnishd_OBJECTS):	VSC_smf.h
+
+EXTRA_DIST	+=	smf.vsc
+DISTCLEANFILES	+=	VSC_smf.c VSC_smf.h
+nodist_varnishd_SOURCES +=	VSC_smf.c
+
+#######################################################################
+
+VSC_mempool.c VSC_mempool.h: $(srcdir)/mempool.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/mempool.vsc
+
+$(varnishd_OBJECTS):	VSC_mempool.h
+
+EXTRA_DIST	+=	mempool.vsc
+DISTCLEANFILES	+=	VSC_mempool.c VSC_mempool.h
+nodist_varnishd_SOURCES +=	VSC_mempool.c
+
+#######################################################################
+
+VSC_mgt.c VSC_mgt.h: $(srcdir)/mgt.vsc $(top_builddir)/lib/libvcc/vsctool.py
+	$(PYTHON) $(top_srcdir)/lib/libvcc/vsctool.py -ch $(srcdir)/mgt.vsc
+
+$(varnishd_OBJECTS):	VSC_mgt.h
+
+EXTRA_DIST	+=	mgt.vsc
+DISTCLEANFILES	+=	VSC_mgt.c VSC_mgt.h
+nodist_varnishd_SOURCES +=	VSC_mgt.c
+

@@ -32,7 +32,6 @@
 
 #include "cache.h"
 #include "common/heritage.h"
-#include "hash/hash_slinger.h"
 
 #include "cache_director.h"
 #include "vrt.h"
@@ -680,7 +679,7 @@ VRT_r_server_identity(VRT_CTX)
 	if (heritage.identity != NULL)
 		return (heritage.identity);
 	else
-		return (heritage.name);
+		return ("varnishd");
 }
 
 const char*

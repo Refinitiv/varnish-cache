@@ -37,9 +37,40 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include "mgt/mgt.h"
 
+#include "common/heritage.h"
+
+/*--------------------------------------------------------------------*/
+
+char *
+mgt_HostName(void)
+{
+	char *p;
+	char buf[1024];
+
+	AZ(gethostname(buf, sizeof buf));
+	p = strdup(buf);
+	AN(p);
+	return (p);
+}
+
+/*--------------------------------------------------------------------*/
+
+void
+mgt_ProcTitle(const char *comp)
+{
+#ifdef HAVE_SETPROCTITLE
+	if (strcmp(heritage.identity, "varnishd"))
+		setproctitle("Varnish-%s -i %s", comp, heritage.identity);
+	else
+		setproctitle("Varnish-%s", comp);
+#else
+	(void)comp;
+#endif
+}
 
 /*--------------------------------------------------------------------*/
 

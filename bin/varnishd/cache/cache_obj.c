@@ -87,7 +87,6 @@
 #include "cache_obj.h"
 #include "vend.h"
 #include "storage/storage.h"
-#include "hash/hash_slinger.h"
 
 static const struct obj_methods *
 obj_getmethods(const struct objcore *oc)
@@ -133,7 +132,7 @@ obj_deleteboc(struct boc **p)
  */
 
 struct objcore *
-ObjNew(struct worker *wrk)
+ObjNew(const struct worker *wrk)
 {
 	struct objcore *oc;
 
@@ -156,7 +155,7 @@ ObjNew(struct worker *wrk)
  */
 
 void
-ObjDestroy(struct worker *wrk, struct objcore **p)
+ObjDestroy(const struct worker *wrk, struct objcore **p)
 {
 	struct objcore *oc;
 

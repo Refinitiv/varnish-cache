@@ -216,8 +216,7 @@ sp_variables = [
 		(), """
 		The identity of the server, as set by the -i
 		parameter.  If the -i parameter is not passed to varnishd,
-		server.identity will be set to the name of the instance, as
-		specified by the -n parameter.
+		server.identity will be set to the hostname of the machine.
 		"""
 	),
 	('req',
@@ -1277,9 +1276,6 @@ file_header(fo)
 fo.write("""
 
 #include "config.h"
-
-#include <ctype.h>
-#include <stdio.h>
 
 #include "vcc_compile.h"
 """)

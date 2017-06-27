@@ -31,6 +31,7 @@
 
 struct vsm_sc;
 struct suckaddr;
+struct listen_sock;
 struct transport;
 
 struct listen_arg {
@@ -48,7 +49,6 @@ struct listen_sock {
 	VTAILQ_ENTRY(listen_sock)	list;
 	VTAILQ_ENTRY(listen_sock)	arglist;
 	int				sock;
-	const struct listen_arg		*arg;
 	char				*name;
 	struct suckaddr			*addr;
 	const struct transport		*transport;
@@ -75,7 +75,6 @@ struct heritage {
 
 	struct params			*param;
 
-	char				*name;
 	const char			*identity;
 
 	char				*panic_str;

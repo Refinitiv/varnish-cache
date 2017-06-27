@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2015 Varnish Software AS
+ * Copyright (c) 2006-2017 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,32 +28,23 @@
  *
  */
 
-struct vsc;
-struct vsb;
+#ifdef COMMON_COMMON_VSM_H
+#error "Multiple includes of common/common_vsm.h"
+#endif
+#define COMMON_COMMON_VSM_H
 
-struct VSM_data {
-	unsigned		magic;
-#define VSM_MAGIC		0x6e3bd69b
+/* common_vsm.c */
+struct vsm_sc;
+struct VSC_main;
+struct vsm_sc *CVSM_new(void *ptr, ssize_t len);
+void *CVSM_alloc(struct vsm_sc *sc, ssize_t size,
+    const char *class, const char *type, const char *ident);
+void CVSM_free(struct vsm_sc *sc, void *ptr);
+void CVSM_delete(struct vsm_sc **sc);
+void CVSM_copy(struct vsm_sc *to, const struct vsm_sc *from);
+void CVSM_cleaner(struct vsm_sc *sc, struct VSC_main *stats);
+void CVSM_ageupdate(const struct vsm_sc *sc);
 
-	struct vsb		*diag;
-
-	char			*name;
-	char			*fname;
-	int			N_opt;
-
-	struct stat		fstat;
-
-	int			vsm_fd;
-	struct VSM_head		*head;
-	char			*b;
-	char			*e;
-
-	uint64_t		age_ok;
-	double			t_ok;
-
-	struct vsc		*vsc;
-};
-
-int vsm_diag(struct VSM_data *vd, const char *fmt, ...)
-    __v_printflike(2, 3);
-void VSC_Delete(struct VSM_data *vd);
+void *VSC_Alloc(const char *, size_t, size_t, const unsigned char *, size_t,
+    const char *, va_list);
+void VSC_Destroy(const char *, const void *);

@@ -37,7 +37,6 @@
 
 #include "cache/cache.h"
 
-#include <sys/param.h>
 #include <sys/mman.h>
 
 #include <stdio.h>
@@ -56,7 +55,7 @@
 
 static struct obj_methods smp_oc_realmethods;
 
-static struct VSC_C_lck *lck_smp;
+static struct VSC_lck *lck_smp;
 
 static void smp_init(void);
 

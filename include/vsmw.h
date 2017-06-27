@@ -1,9 +1,8 @@
 /*-
- * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2014 Varnish Software AS
+ * Copyright (c) 2017 Varnish Software AS
  * All rights reserved.
  *
- * Author: Martin Blix Grydeland <martin@varnish-software.com>
+ * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,49 +24,18 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * Fields (n, l, e, d):
- *    n - Name:		Field name, in C-source
- *    t - Type:		Type name, in shm chunk
- *    l - Label:	Display name, in stats programs
- *    e - Explanation:	Short description of this counter type
- *    d - Description:	Long description of this counter type
- *
- * The order in which the types are defined in this file determines the
- * order in which counters are reported in the API, and then also the
- * display order in varnishstat.
  */
 
-/*lint -save -e525 -e539 */
+#ifdef VSMW_H_INCLUDED
+#error "Multiple includes of vsmw.h"
+#endif
+#define VSMW_H_INCLUDED
 
-VSC_TYPE_F(main,	"MAIN",		"",		"Child",
-    "Child process main counters"
-)
+struct vsmw;
 
-VSC_TYPE_F(mgt,		"MGT",		"MGT",		"Master",
-    "Management process counters"
-)
+void *VSMW_Allocv(struct vsmw *, const char *, size_t, const char *, va_list);
+void *VSMW_Allocf(struct vsmw *, const char *, size_t, const char *, ...);
+void VSMW_Free(struct vsmw *, void **);
 
-VSC_TYPE_F(mempool,	"MEMPOOL",	"MEMPOOL",	"Memory pool",
-    "Memory pool counters"
-)
-
-VSC_TYPE_F(sma,		"SMA",		"SMA",		"Storage malloc",
-    "Malloc storage counters"
-)
-
-VSC_TYPE_F(smf,		"SMF",		"SMF",		"Storage file",
-    "File storage counters"
-)
-
-VSC_TYPE_F(vbe,		"VBE",		"VBE",		"Backend",
-    "Backend counters"
-)
-
-VSC_TYPE_F(lck,		"LCK",		"LCK",		"Lock",
-    "Mutex lock counters"
-)
-
-#undef VSC_TYPE_F
-
-/*lint -restore */
+struct vsmw *VSMW_New(int, int, const char *);
+void VSMW_Destroy(struct vsmw **);

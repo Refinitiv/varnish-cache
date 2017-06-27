@@ -1,9 +1,9 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2014 Varnish Software AS
+ * Copyright (c) 2006-2015 Varnish Software AS
  * All rights reserved.
  *
- * Author: Martin Blix Grydeland <martin@varnish-software.com>
+ * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,12 +25,93 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
  */
 
-#include "common.h"
+#include "config.h"
 
-/* Build the static vsc type names */
-#define VSC_TYPE_F(n,t,l,e,d) const char *VSC_type_##n = t;
-#include "tbl/vsc_types.h"
-#undef VSC_TYPE_F
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "common.h"
+#include "common/common_vsm.h"
+
+#include "vend.h"
+#include "vgz.h"
+#include "vmb.h"
+#include "vapi/vsc_int.h"
+
+/*--------------------------------------------------------------------*/
+
+void *VSM_Alloc(unsigned size, const char *class, const char *type,
+    const char *ident);
+void VSM_Free(void *ptr);
+
+/*--------------------------------------------------------------------*/
+
+struct vsc_segs {
+	unsigned		magic;
+#define VSC_SEGS_MAGIC		0x9b355991
+
+	VTAILQ_ENTRY(vsc_segs)	list;
+	void			*seg;
+	void			*ptr;
+};
+
+static VTAILQ_HEAD(,vsc_segs)	vsc_seglist =
+    VTAILQ_HEAD_INITIALIZER(vsc_seglist);
+
+void *
+VSC_Alloc(const char *nm, size_t sd,
+    size_t sj, const unsigned char *zj, size_t szj,
+    const char *fmt, va_list va)
+{
+	char *p;
+	z_stream vz;
+	struct vsc_segs *vsg;
+
+	(void)nm;
+	(void)fmt;
+	(void)va;
+
+
+	p = VSM_Alloc(8 + sd + sj, VSC_CLASS, nm, fmt);
+	AN(p);
+
+	memset(p, 0, sd);
+
+	memset(&vz, 0, sizeof vz);
+	assert(Z_OK == inflateInit2(&vz, 31));
+	vz.next_in = TRUST_ME(zj);
+	vz.avail_in = szj;
+	vz.next_out = (void*)(p + 8 + sd);
+	vz.avail_out = sj;
+	assert(Z_STREAM_END == inflate(&vz, Z_FINISH));
+	assert(Z_OK == inflateEnd(&vz));
+	ALLOC_OBJ(vsg, VSC_SEGS_MAGIC);
+	AN(vsg);
+	vsg->seg = p;
+	vsg->ptr = p + 8;
+	VTAILQ_INSERT_TAIL(&vsc_seglist, vsg, list);
+	VWMB();
+	vbe64enc(p, sd);
+	return (p + 8);
+}
+
+void
+VSC_Destroy(const char *nm, const void *p)
+{
+	struct vsc_segs *vsg;
+
+	(void)nm;
+	VTAILQ_FOREACH(vsg, &vsc_seglist, list) {
+		if (vsg->ptr != p)
+			continue;
+		VSM_Free(vsg->seg);
+		VTAILQ_REMOVE(&vsc_seglist, vsg, list);
+		FREE_OBJ(vsg);
+		return;
+	}
+	WRONG("Freeing unknown VSC");
+}

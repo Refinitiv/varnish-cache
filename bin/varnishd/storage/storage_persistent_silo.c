@@ -39,7 +39,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cache/cache_obj.h"
 #include "storage/storage.h"
 #include "storage/storage_simple.h"
 
@@ -390,7 +389,7 @@ smp_loaded_st(const struct smp_sc *sc, const struct smp_seg *sg,
  * objcore methods for persistent objects
  */
 
-struct object *
+struct object * __match_proto__(sml_getobj_f)
 smp_sml_getobj(struct worker *wrk, struct objcore *oc)
 {
 	struct object *o;

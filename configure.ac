@@ -258,7 +258,7 @@ AC_ARG_ENABLE(msan,
 	MSAN_FLAGS="-fsanitize=memory")
 
 if test "x$UBSAN_FLAGS$TSAN_FLAGS$ASAN_FLAGS$MSAN_FLAGS" != "x"; then
-	SAN_CFLAGS="${UBSAN_FLAGS} ${TSAN_FLAGS} ${ASAN_FLAGS} ${MSAN_FLAGS} -fPIC -fPIE -fno-omit-frame-pointer"
+	SAN_CFLAGS="-DWITH_SANITIZERS=1 ${UBSAN_FLAGS} ${TSAN_FLAGS} ${ASAN_FLAGS} ${MSAN_FLAGS} -fPIC -fPIE -fno-omit-frame-pointer"
 	SAN_LDFLAGS="${UBSAN_FLAGS} ${TSAN_FLAGS} ${ASAN_FLAGS} ${MSAN_FLAGS} -pie"
 fi
 AC_SUBST(SAN_CFLAGS)
@@ -358,6 +358,27 @@ AC_CHECK_DECL([SO_ACCEPTFILTER],
 #include <sys/socket.h>
     ]
 )
+
+# Check for _Static_assert()
+# We dont' want to go all C11 on this, and we have vas.h instead
+# of assert.h, so check the brutal way
+
+save_LIBS="${LIBS}"
+LIBS=""
+AC_CACHE_CHECK([for _Static_assert],
+  [ac_cv_static_assert],
+  [AC_RUN_IFELSE(
+    [AC_LANG_PROGRAM([[
+_Static_assert(1 == sizeof(char), "didn't work");
+    ]],[[
+    ]])],
+    [ac_cv_static_assert=yes],
+    [ac_cv_static_assert=no])
+  ])
+if test "$ac_cv_static_assert" = yes; then
+   AC_DEFINE([STATIC_ASSERT], [1], [Define if _Static_assert is availabel])
+fi
+LIBS="${save_LIBS}"
 
 # Older Solaris versions define SO_{RCV,SND}TIMEO, but do not
 # implement them.

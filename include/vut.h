@@ -35,7 +35,6 @@ typedef int VUT_cb_f(void);
 
 struct VUT {
 	const char	*progname;
-	char		*name;
 
 	/* Options */
 	int		d_opt;
@@ -43,7 +42,6 @@ struct VUT {
 	int		g_arg;
 	int		k_arg;
 	char		*n_arg;
-	char		*N_arg;
 	char		*P_arg;
 	char		*q_arg;
 	char		*r_arg;
@@ -51,7 +49,7 @@ struct VUT {
 
 	/* State */
 	struct VSL_data	*vsl;
-	struct VSM_data	*vsm;
+	struct vsm	*vsm;
 	struct VSLQ	*vslq;
 	struct vpf_fh	*pfh;
 	int		sighup;
@@ -67,8 +65,9 @@ struct VUT {
 
 extern struct VUT VUT;
 
+//lint -sem(VUT_Error, r_no)
 void VUT_Error(int status, const char *fmt, ...)
-	__v_printflike(2, 3);
+	__v_printflike(2, 3) __attribute__((__noreturn__));
 
 int VUT_g_Arg(const char *arg);
 

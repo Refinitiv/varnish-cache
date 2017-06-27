@@ -39,7 +39,6 @@
 #include "common/common.h"
 
 #include "vapi/vsl_int.h"
-#include "vapi/vsm_int.h"
 
 #include "waiter/waiter.h"
 
@@ -96,7 +95,7 @@ enum {
 
 /*--------------------------------------------------------------------*/
 
-struct VSC_C_lck;
+struct VSC_lck;
 struct ban;
 struct ban_proto;
 struct backend;
@@ -113,11 +112,16 @@ struct poolparam;
 struct transport;
 struct req;
 struct sess;
+struct stevedore;
 struct suckaddr;
 struct vrt_priv;
 struct vsb;
 struct worker;
 struct v1l;
+
+struct VSC_main;
+
+#define dstat VSC_main
 
 #define DIGEST_LEN		32
 
@@ -250,18 +254,6 @@ struct acct_bereq {
 
 /*--------------------------------------------------------------------*/
 
-#define L0(t, n)
-#define L1(t, n)		t n;
-#define VSC_FF(n,t,l,s,f,v,d,e)	L##l(t, n)
-struct dstat {
-	unsigned		summs;
-#include "tbl/vsc_f_main.h"
-};
-#undef L0
-#undef L1
-
-/*--------------------------------------------------------------------*/
-
 struct vsl_log {
 	uint32_t		*wlb, *wlp, *wle;
 	unsigned		wlr;
@@ -315,7 +307,7 @@ struct worker {
 	struct objhead		*nobjhead;
 	struct objcore		*nobjcore;
 	void			*nhashpriv;
-	struct dstat		stats[1];
+	struct dstat		*stats;
 	struct vsl_log		*vsl;		// borrowed from req/bo
 
 	struct pool_task	task;
@@ -828,7 +820,7 @@ extern pthread_key_t witness_key;
 void Lck__Lock(struct lock *lck, const char *p,  int l);
 void Lck__Unlock(struct lock *lck, const char *p,  int l);
 int Lck__Trylock(struct lock *lck, const char *p,  int l);
-void Lck__New(struct lock *lck, struct VSC_C_lck *, const char *);
+void Lck__New(struct lock *lck, struct VSC_lck *, const char *);
 int Lck__Held(const struct lock *lck);
 int Lck__Owned(const struct lock *lck);
 
@@ -846,9 +838,9 @@ int Lck_CondWait(pthread_cond_t *cond, struct lock *lck, double);
 		assert(Lck__Owned(a));	\
 	} while (0)
 
-struct VSC_C_lck *Lck_CreateClass(const char *name);
+struct VSC_lck *Lck_CreateClass(const char *name);
 
-#define LOCK(nam) extern struct VSC_C_lck *lck_##nam;
+#define LOCK(nam) extern struct VSC_lck *lck_##nam;
 #include "tbl/locks.h"
 
 /* cache_mempool.c */
@@ -860,8 +852,8 @@ void *MPL_Get(struct mempool *mpl, unsigned *size);
 void MPL_Free(struct mempool *mpl, void *item);
 
 /* cache_obj.c */
-struct objcore * ObjNew(struct worker *);
-void ObjDestroy(struct worker *, struct objcore **);
+struct objcore * ObjNew(const struct worker *);
+void ObjDestroy(const struct worker *, struct objcore **);
 typedef int objiterate_f(void *priv, int flush, const void *ptr, ssize_t len);
 int ObjIterate(struct worker *, struct objcore *,
     void *priv, objiterate_f *func, int final);
@@ -920,8 +912,8 @@ const char *sess_close_2str(enum sess_close sc, int want_desc);
 int Pool_Task(struct pool *pp, struct pool_task *task, enum task_prio prio);
 int Pool_Task_Arg(struct worker *, enum task_prio, task_func_t *,
     const void *arg, size_t arg_len);
-void Pool_Sumstat(struct worker *w);
-int Pool_TrySumstat(struct worker *wrk);
+void Pool_Sumstat(const struct worker *w);
+int Pool_TrySumstat(const struct worker *wrk);
 void Pool_PurgeStat(unsigned nobj);
 int Pool_Task_Any(struct pool_task *task, enum task_prio prio);
 
@@ -977,7 +969,6 @@ void SES_Set_String_Attr(struct sess *sp, enum sess_attr a, const char *src);
 const char *SES_Get_String_Attr(const struct sess *sp, enum sess_attr a);
 
 /* cache_shmlog.c */
-extern struct VSC_C_main *VSC_C_main;
 void *VSM_Alloc(unsigned size, const char *class, const char *type,
     const char *ident);
 void VSM_Free(void *ptr);

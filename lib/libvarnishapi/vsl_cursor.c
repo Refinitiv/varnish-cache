@@ -29,6 +29,8 @@
  *
  */
 
+#include "config.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -52,7 +54,6 @@
 #include "vapi/vsm.h"
 
 #include "vsl_api.h"
-#include "vsm_api.h"
 
 struct vslc_vsm {
 	unsigned			magic;
@@ -62,8 +63,8 @@ struct vslc_vsm {
 
 	unsigned			options;
 
-	struct VSM_data			*vsm;
-	struct VSM_fantom		vf;
+	struct vsm			*vsm;
+	struct vsm_fantom		vf;
 
 	const struct VSL_head		*head;
 	const uint32_t			*end;
@@ -123,7 +124,6 @@ vslc_vsm_next(const struct VSL_cursor *cursor)
 
 	CAST_OBJ_NOTNULL(c, cursor->priv_data, VSLC_VSM_MAGIC);
 	assert(&c->cursor == cursor);
-	CHECK_OBJ_NOTNULL(c->vsm, VSM_MAGIC);
 
 	while (1) {
 		i = vslc_vsm_check(&c->cursor, &c->next);
@@ -238,21 +238,22 @@ static const struct vslc_tbl vslc_vsm_tbl = {
 };
 
 struct VSL_cursor *
-VSL_CursorVSM(struct VSL_data *vsl, struct VSM_data *vsm, unsigned options)
+VSL_CursorVSM(struct VSL_data *vsl, struct vsm *vsm, unsigned options)
 {
 	struct vslc_vsm *c;
-	struct VSM_fantom vf;
+	struct vsm_fantom vf;
 	struct VSL_head *head;
 	int i;
 
 	CHECK_OBJ_NOTNULL(vsl, VSL_MAGIC);
-	CHECK_OBJ_NOTNULL(vsm, VSM_MAGIC);
 
-	if (!VSM_Get(vsm, &vf, VSL_CLASS, "", "")) {
+	if (!VSM_Get(vsm, &vf, VSL_CLASS, NULL)) {
 		(void)vsl_diag(vsl,
 		    "No VSL chunk found (child not started ?)");
 		return (NULL);
 	}
+	AZ(VSM_Map(vsm, &vf));
+	AN(vf.b);
 
 	head = vf.b;
 	if (memcmp(head->marker, VSL_HEAD_MARKER, sizeof head->marker)) {
@@ -316,7 +317,7 @@ vslc_file_delete(const struct VSL_cursor *cursor)
 static ssize_t
 vslc_file_readn(int fd, void *buf, size_t n)
 {
-	size_t t = 0;
+	ssize_t t = 0;
 	ssize_t l;
 
 	while (t < n) {
@@ -333,7 +334,7 @@ vslc_file_next(const struct VSL_cursor *cursor)
 {
 	struct vslc_file *c;
 	ssize_t i;
-	size_t l;
+	ssize_t l;
 
 	CAST_OBJ_NOTNULL(c, cursor->priv_data, VSLC_FILE_MAGIC);
 	assert(&c->cursor == cursor);

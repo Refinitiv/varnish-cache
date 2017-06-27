@@ -31,7 +31,6 @@
 #include "config.h"
 
 #include <sys/mman.h>
-#include <sys/stat.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -41,6 +40,7 @@
 
 #include "mgt/mgt.h"
 #include "common/heritage.h"
+#include "common/common_vsm.h"
 
 #include "vfl.h"
 #include "vsm_priv.h"
@@ -73,68 +73,14 @@ mgt_SHM_static_alloc(const void *ptr, ssize_t size,
 {
 	void *p;
 
-	p = VSM_common_alloc(static_vsm, size, class, type, ident);
+	p = CVSM_alloc(static_vsm, size, class, type, ident);
 	AN(p);
 	memcpy(p, ptr, size);
 	if (heritage.vsm != NULL) {
-		p = VSM_common_alloc(heritage.vsm, size, class, type, ident);
+		p = CVSM_alloc(heritage.vsm, size, class, type, ident);
 		AN(p);
 		memcpy(p, ptr, size);
 	}
-}
-
-/*--------------------------------------------------------------------
- * Check that we are not started with the same -n argument as an already
- * running varnishd.
- *
- * Non-zero return means we should exit and not trample the file.
- *
- */
-
-static int
-vsm_n_check(void)
-{
-	int fd, i;
-	struct stat st;
-	pid_t pid;
-	struct VSM_head vsmh;
-	int retval = 1;
-
-	fd = open(VSM_FILENAME, O_RDWR);
-	if (fd < 0)
-		return (0);
-
-	AZ(fstat(fd, &st));
-	if (!S_ISREG(st.st_mode)) {
-		fprintf(stderr,
-		    "VSM (%s) not a regular file.\n", VSM_FILENAME);
-	} else {
-		i = VFL_Test(fd, &pid);
-		if (i < 0) {
-			fprintf(stderr,
-			    "Cannot determine locking status of VSM (%s)\n.",
-			    VSM_FILENAME);
-		} else if (i == 0) {
-			/*
-			 * File is unlocked, mark it as dead, to help any
-			 * consumers still stuck on it.
-			 */
-			if (pread(fd, &vsmh, sizeof vsmh, 0) == sizeof vsmh) {
-				vsmh.alloc_seq = 0;
-				assert(sizeof vsmh ==
-				    pwrite(fd, &vsmh, sizeof vsmh, 0));
-			}
-			retval = 0;
-		} else {
-			/* The VSM is locked, we won't touch it. */
-			fprintf(stderr,
-			    "VSM locked by running varnishd master (pid=%jd)\n"
-			    "(Use unique -n arguments if you want"
-			    "  multiple instances)\n", (intmax_t)pid);
-		}
-	}
-	(void)close(fd);
-	return (retval);
 }
 
 /*--------------------------------------------------------------------
@@ -233,23 +179,22 @@ mgt_SHM_Create(void)
 	/* This may or may not work */
 	(void)mlock(p, size);
 
-	heritage.vsm = VSM_common_new(p, size);
+	heritage.vsm = CVSM_new(p, size);
 
-	VSM_common_copy(heritage.vsm, static_vsm);
+	CVSM_copy(heritage.vsm, static_vsm);
 
-	heritage.param = VSM_common_alloc(heritage.vsm,
+	heritage.param = CVSM_alloc(heritage.vsm,
 	    sizeof *heritage.param, VSM_CLASS_PARAM, "", "");
 	AN(heritage.param);
 	*heritage.param = mgt_param;
 
 	heritage.panic_str_len = 64 * 1024;
-	heritage.panic_str = VSM_common_alloc(heritage.vsm,
+	heritage.panic_str = CVSM_alloc(heritage.vsm,
 	    heritage.panic_str_len, PAN_CLASS, "", "");
 	AN(heritage.panic_str);
 
 	/* Copy management counters to shm and update pointer */
-	VSC_C_mgt = VSM_common_alloc(heritage.vsm,
-	    sizeof *VSC_C_mgt, VSC_CLASS, VSC_type_mgt, "");
+	VSC_C_mgt = VSC_mgt_New("");
 	AN(VSC_C_mgt);
 	*VSC_C_mgt = static_VSC_C_mgt;
 
@@ -284,7 +229,7 @@ mgt_SHM_Destroy(int keep)
 	heritage.panic_str = NULL;
 	heritage.panic_str_len = 0;
 	heritage.param = NULL;
-	VSM_common_delete(&heritage.vsm);
+	CVSM_delete(&heritage.vsm);
 	AZ(munmap(mgt_vsm_p, mgt_vsm_l));
 	mgt_vsm_p = NULL;
 	mgt_vsm_l = 0;
@@ -317,7 +262,7 @@ mgt_shm_atexit(void)
 	if (getpid() != mgt_pid)
 		return;
 	if (heritage.vsm != NULL)
-		VSM_common_delete(&heritage.vsm);
+		CVSM_delete(&heritage.vsm);
 }
 
 /*--------------------------------------------------------------------
@@ -327,15 +272,8 @@ mgt_shm_atexit(void)
 void
 mgt_SHM_Init(void)
 {
-	int i;
-
-	/* Collision check with already running varnishd */
-	i = vsm_n_check();
-	if (i)
-		exit(2);
-
 	/* Create our static VSM instance */
-	static_vsm = VSM_common_new(static_vsm_buf, sizeof static_vsm_buf);
+	static_vsm = CVSM_new(static_vsm_buf, sizeof static_vsm_buf);
 
 	/* Setup atexit handler */
 	AZ(atexit(mgt_shm_atexit));

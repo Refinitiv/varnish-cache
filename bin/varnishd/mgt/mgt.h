@@ -38,6 +38,8 @@
 #include "common/common.h"
 #include "common/com_params.h"
 
+#include "VSC_mgt.h"
+
 struct cli;
 struct parspec;
 struct vcc;
@@ -46,6 +48,10 @@ struct vclprog;
 extern struct vev_base	*mgt_evb;
 extern unsigned		d_flag;
 extern int		exit_status;
+
+/* builtin_vcl.c */
+
+extern const char * const builtin_vcl;
 
 /* mgt_acceptor.c */
 
@@ -126,8 +132,8 @@ extern const struct jail_tech jail_tech_unix;
 extern const struct jail_tech jail_tech_solaris;
 
 /* mgt_main.c */
-extern struct VSC_C_mgt	*VSC_C_mgt;
-extern struct VSC_C_mgt static_VSC_C_mgt;
+extern struct VSC_mgt	*VSC_C_mgt;
+extern struct VSC_mgt	static_VSC_C_mgt;
 struct choice {
 	const char      *name;
 	const void	*ptr;
@@ -168,6 +174,8 @@ void mgt_SHM_Size_Adjust(void);
 void MCF_TcpParams(void);
 
 /* mgt_util.c */
+char *mgt_HostName(void);
+void mgt_ProcTitle(const char *comp);
 void mgt_DumpRstVsl(void);
 struct vsb *mgt_BuildVident(void);
 void MGT_Complain(const char *, const char *, ...) __v_printflike(2, 3);

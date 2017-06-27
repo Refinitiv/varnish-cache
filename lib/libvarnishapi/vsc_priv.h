@@ -1,8 +1,9 @@
 /*-
- * Copyright (c) 2011-2015 Varnish Software AS
+ * Copyright (c) 2006 Verdens Gang AS
+ * Copyright (c) 2006-2015 Varnish Software AS
  * All rights reserved.
  *
- * Author: Tollef Fog Heen <tfheen@varnish-software.com>
+ * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,43 +28,9 @@
  *
  */
 
-#include "config.h"
+struct vsc;
+struct vsm;
 
-#include <stdio.h>
-
-#define VSC_LEVEL_F(v,l,e,d)		\
-	static const char VSC_level_##v[] = l;
-#include "tbl/vsc_levels.h"
-#undef VSC_LEVEL_F
-
-static void
-L(const char *s)
-{
-	printf("\n%s\n", s);
-	for (;*s != '\0'; s++)
-		putchar('=');
-	putchar('\n');
-	putchar('\n');
-}
-
-int main(int argc, char **argv)
-{
-	(void)argc;
-	(void)argv;
-	L("COUNTER LEVELS");
-
-#define VSC_LEVEL_F(v,l,e,d)		\
-	printf("%s – %s\n\t%s\n\n", l, e, d);
-
-#include "tbl/vsc_levels.h"
-
-#define VSC_DO(U,l,t,h) L(h);
-
-#define VSC_F(n, t, l, s, f, v, d, e)	\
-	printf("%s – %s (%s)\n\t%s\n\n", #n, d, VSC_level_##v, e);
-
-#define VSC_DONE(U,l,t)
-
-#include "tbl/vsc_all.h"
-	return (0);
-}
+void VSM_SetVSC(struct vsm *, struct vsc *);
+struct vsc *VSM_GetVSC(const struct vsm *);
+void VSC_Delete(struct vsc *);

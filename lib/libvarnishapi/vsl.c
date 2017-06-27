@@ -30,16 +30,10 @@
 
 #include "config.h"
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
 #include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 #include "vdef.h"
 #include "vas.h"
@@ -51,11 +45,9 @@
 #include "vre.h"
 #include "vsb.h"
 
-#include "vapi/vsm.h"
 #include "vapi/vsl.h"
 
 #include "vsl_api.h"
-#include "vsm_api.h"
 
 /*--------------------------------------------------------------------*/
 
@@ -366,7 +358,8 @@ VSL_PrintTransactions(struct VSL_data *vsl, struct VSL_transaction * const pt[],
 			if (t->level > 3)
 				VSL_PRINT(fo, "*%1.1u* ", t->level);
 			else
-				VSL_PRINT(fo, "%-3.*s ", t->level, "***");
+				VSL_PRINT(fo, "%-3.*s ",
+				    (int)(t->level), "***");
 			VSL_PRINT(fo, "%*.s%-14s %*.s%-10u\n",
 			    verbose ? 10 + 1 : 0, " ",
 			    VSL_transactions[t->type],
@@ -387,7 +380,8 @@ VSL_PrintTransactions(struct VSL_data *vsl, struct VSL_transaction * const pt[],
 			if (t->level > 3)
 				VSL_PRINT(fo, "-%1.1u- ", t->level);
 			else if (t->level)
-				VSL_PRINT(fo, "%-3.*s ", t->level, "---");
+				VSL_PRINT(fo, "%-3.*s ",
+				    (int)(t->level), "---");
 			if (verbose)
 				i = VSL_Print(vsl, t->c, fo);
 			else
@@ -418,7 +412,7 @@ VSL_WriteOpen(struct VSL_data *vsl, const char *name, int append, int unbuf)
 	if (0 == ftell(f)) {
 		if (fwrite(head, 1, sizeof head, f) != sizeof head) {
 			vsl_diag(vsl, "%s", strerror(errno));
-			fclose(f);
+			(void)fclose(f);
 			return (NULL);
 		}
 	}

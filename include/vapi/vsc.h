@@ -37,14 +37,14 @@
 
 #include "vapi/vsc_int.h"
 
-struct VSM_data;
-struct VSM_fantom;
+struct vsm;
+struct vsm_fantom;
 
 /*---------------------------------------------------------------------
  * VSC level access functions
  */
 
-int VSC_Arg(struct VSM_data *vd, int arg, const char *opt);
+int VSC_Arg(struct vsm *vd, int arg, const char *opt);
 	/*
 	 * Handle standard stat-presenter arguments
 	 * Return:
@@ -53,75 +53,18 @@ int VSC_Arg(struct VSM_data *vd, int arg, const char *opt);
 	 *	 1 Handled.
 	 */
 
-struct VSC_C_mgt *VSC_Mgt(const struct VSM_data *vd,
-    struct VSM_fantom *fantom);
-struct VSC_C_main *VSC_Main(const struct VSM_data *vd,
-    struct VSM_fantom *fantom);
-	/*
-	 * Looks up and returns the management stats and the child main
-	 * stats structure. If fantom is non-NULL, it can later be used
-	 * with VSM_StillValid. Returns NULL until the management process
-	 * has finished initialization or the child has been started.
-	 *
-	 * The returned structure is valid for at most 60 seconds after
-	 * VSM_StillValid(,fantom) starts returning VSM_invalid. Using the
-	 * pointer after this event gives undefined behavior.
-	 *
-	 * Arguments:
-	 *	    vd: The VSM_data context
-	 *	fantom: Pointer to a fantom. Can be NULL.
-	 *
-	 * Return values:
-	 *      NULL: Failure
-	 *  non-NULL: Success
-	 */
-
-void *VSC_Get(const struct VSM_data *vd, struct VSM_fantom *fantom,
-    const char *type, const char *ident);
-	/*
-	 * Looks up the given VSC type and identifier. If fantom is
-	 * non-NULL, it can if successful later be used with
-	 * VSM_StillValid.
-	 *
-	 * Arguments:
-	 *	vd:	The VSM_data context
-	 *	fantom: Pointer to a fantom. Can be NULL.
-	 *	type:	The type of the counter segment
-	 *	ident:	The identifier of the counter segment
-	 *
-	 * Return values:
-	 *  NULL:	Failure
-	 *  non-NULL:	A void pointer to the stats structure.
-	 */
-
 struct VSC_level_desc;
-struct VSC_type_desc;
-struct VSC_section;
-struct VSC_desc;
 struct VSC_point;
 
 struct VSC_level_desc {
-	unsigned verbosity;
+	const char *name;		/* name */
 	const char *label;		/* label */
 	const char *sdesc;		/* short description */
 	const char *ldesc;		/* long description */
 };
 
-struct VSC_type_desc {
-	const char *label;		/* label */
-	const char *sdesc;		/* short description */
-	const char *ldesc;		/* long description */
-};
-
-struct VSC_section {
-	const char *type;
-	const char *ident;
-	const struct VSC_type_desc *desc;
-	struct VSM_fantom *fantom;
-};
-
-/* See include/tbl/vsc_fields.h for descriptions */
-struct VSC_desc {
+struct VSC_point {
+	const volatile uint64_t *ptr;	/* field value			*/
 	const char *name;		/* field name			*/
 	const char *ctype;		/* C-type			*/
 	int semantics;			/* semantics			*/
@@ -131,21 +74,19 @@ struct VSC_desc {
 	const char *ldesc;		/* long description		*/
 };
 
-struct VSC_point {
-	const struct VSC_desc *desc;	/* point description		*/
-	const volatile void *ptr;	/* field value			*/
-	const struct VSC_section *section;
-};
+struct VSC_point *VSC_Clone_Point(const struct VSC_point * const);
+
+void VSC_Destroy_Point(struct VSC_point **);
 
 typedef int VSC_iter_f(void *priv, const struct VSC_point *const pt);
 
-int VSC_Iter(struct VSM_data *vd, struct VSM_fantom *fantom, VSC_iter_f *func,
+int VSC_Iter(struct vsm *vd, struct vsm_fantom *fantom, VSC_iter_f *func,
     void *priv);
 	/*
 	 * Iterate over all statistics counters, calling "func" for
 	 * each counter not suppressed by any "-f" arguments.
 	 *
-	 * fantom points to a struct VSM_fantom. If non-NULL, it can be
+	 * fantom points to a struct vsm_fantom. If non-NULL, it can be
 	 * used with VSM_StillValid to check the validity of the points
 	 * returned.
 	 *
@@ -158,7 +99,7 @@ int VSC_Iter(struct VSM_data *vd, struct VSM_fantom *fantom, VSC_iter_f *func,
 	 * change (child restart, allocations/deallocations)
 	 *
 	 * Arguments:
-	 *	    vd: The VSM_data context
+	 *	    vd: The vsm context
 	 *	fantom: Pointer to a fantom. Can be NULL.
 	 *	  func: The callback function
 	 *	  priv: Passed as argument to func
@@ -169,25 +110,6 @@ int VSC_Iter(struct VSM_data *vd, struct VSM_fantom *fantom, VSC_iter_f *func,
 	 *	0:	Done
 	 */
 
-const struct VSC_level_desc *VSC_LevelDesc(unsigned level);
-
-/**********************************************************************
- * Precompiled VSC_type_desc's and VSC_desc's for all know VSCs.
- */
-
-#define VSC_LEVEL_F(v,l,e,d) \
-	extern const struct VSC_level_desc VSC_level_desc_##v;
-#include "tbl/vsc_levels.h"
-#undef VSC_LEVEL_F
-
-#define VSC_TYPE_F(n,t,l,e,d) \
-	extern const struct VSC_type_desc VSC_type_desc_##n;
-#include "tbl/vsc_types.h"
-#undef VSC_TYPE_F
-
-#define VSC_DO(U,l,t,h) extern const struct VSC_desc VSC_desc_##l[];
-#define VSC_F(n,t,l,s,f,v,d,e)
-#define VSC_DONE(U,l,t)
-#include "tbl/vsc_all.h"
+const struct VSC_level_desc *VSC_ChangeLevel(const struct VSC_level_desc*, int);
 
 #endif /* VAPI_VSC_H_INCLUDED */

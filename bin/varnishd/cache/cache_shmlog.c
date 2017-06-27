@@ -36,14 +36,17 @@
 #include <stdlib.h>
 
 #include "common/heritage.h"
+#include "common/common_vsm.h"
 
+#include "vend.h"
+#include "vgz.h"
 #include "vsl_priv.h"
 #include "vmb.h"
 #include "vtim.h"
 
 /* These cannot be struct lock, which depends on vsm/vsl working */
 static pthread_mutex_t vsl_mtx;
-static pthread_mutex_t vsm_mtx;
+static pthread_mutex_t vsm_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 static struct VSL_head		*vsl_head;
 static const uint32_t		*vsl_end;
@@ -51,8 +54,7 @@ static uint32_t			*vsl_ptr;
 static unsigned			vsl_segment_n;
 static ssize_t			vsl_segsize;
 
-struct VSC_C_main       *VSC_C_main;
-
+struct VSC_main *VSC_C_main;
 
 static void
 vsl_sanity(const struct vsl_log *vsl)
@@ -478,7 +480,7 @@ vsm_cleaner(void *priv)
 	THR_SetName("vsm_cleaner");
 	while (1) {
 		AZ(pthread_mutex_lock(&vsm_mtx));
-		VSM_common_cleaner(heritage.vsm, VSC_C_main);
+		CVSM_cleaner(heritage.vsm, (void*)VSC_C_main);
 		AZ(pthread_mutex_unlock(&vsm_mtx));
 		VTIM_sleep(1.1);
 	}
@@ -519,10 +521,8 @@ VSM_Init(void)
 	VWMB();
 	memcpy(vsl_head->marker, VSL_HEAD_MARKER, sizeof vsl_head->marker);
 
-	VSC_C_main = VSM_Alloc(sizeof *VSC_C_main,
-	    VSC_CLASS, VSC_type_main, "");
+	VSC_C_main = VSC_main_New("");
 	AN(VSC_C_main);
-	memset(VSC_C_main, 0, sizeof *VSC_C_main);
 
 	AZ(pthread_create(&tp, NULL, vsm_cleaner, NULL));
 }
@@ -536,7 +536,7 @@ VSM_Alloc(unsigned size, const char *class, const char *type,
 	volatile void *p;
 
 	AZ(pthread_mutex_lock(&vsm_mtx));
-	p = VSM_common_alloc(heritage.vsm, size, class, type, ident);
+	p = CVSM_alloc(heritage.vsm, size, class, type, ident);
 	AZ(pthread_mutex_unlock(&vsm_mtx));
 	return (TRUST_ME(p));
 }
@@ -546,6 +546,6 @@ VSM_Free(void *ptr)
 {
 
 	AZ(pthread_mutex_lock(&vsm_mtx));
-	VSM_common_free(heritage.vsm, ptr);
+	CVSM_free(heritage.vsm, ptr);
 	AZ(pthread_mutex_unlock(&vsm_mtx));
 }

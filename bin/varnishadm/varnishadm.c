@@ -58,7 +58,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "vapi/vsl.h"
 #include "vapi/vsm.h"
 #include "vas.h"
 #include "vcli.h"
@@ -186,7 +185,8 @@ do_args(int sock, int argc, char * const *argv)
  * to have a global variable.
  */
 static int _line_sock;
-static void send_line(char *l)
+static void __match_proto__()
+send_line(char *l)
 {
 	if (l) {
 		cli_write(_line_sock, l);
@@ -393,10 +393,10 @@ n_arg_sock(const char *n_arg)
 {
 	char *T_arg = NULL, *T_start = NULL;
 	char *S_arg = NULL;
-	struct VSM_data *vsm;
+	struct vsm *vsm;
 	char *p;
 	int sock;
-	struct VSM_fantom vt;
+	struct vsm_fantom vt;
 
 	vsm = VSM_New();
 	AN(vsm);
@@ -411,15 +411,17 @@ n_arg_sock(const char *n_arg)
 		return (-1);
 	}
 
-	if (!VSM_Get(vsm, &vt, "Arg", "-T", "")) {
+	if (!VSM_Get(vsm, &vt, "Arg", "-T")) {
 		fprintf(stderr, "No -T arg in shared memory\n");
 		VSM_Delete(vsm);
 		return (-1);
 	}
+	AZ(VSM_Map(vsm, &vt));
 	AN(vt.b);
 	T_start = T_arg = strdup(vt.b);
 
-	if (VSM_Get(vsm, &vt, "Arg", "-S", "")) {
+	if (VSM_Get(vsm, &vt, "Arg", "-S")) {
+		AZ(VSM_Map(vsm, &vt));
 		AN(vt.b);
 		S_arg = strdup(vt.b);
 	}

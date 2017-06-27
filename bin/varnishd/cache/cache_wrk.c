@@ -61,10 +61,13 @@ wrk_bgthread(void *arg)
 {
 	struct bgthread *bt;
 	struct worker wrk;
+	struct dstat ds;
 
 	CAST_OBJ_NOTNULL(bt, arg, BGTHREAD_MAGIC);
 	THR_SetName(bt->name);
 	INIT_OBJ(&wrk, WORKER_MAGIC);
+	memset(&ds, 0, sizeof ds);
+	wrk.stats = &ds;
 
 	(void)bt->func(&wrk, bt->priv);
 
@@ -93,6 +96,7 @@ static void
 WRK_Thread(struct pool *qp, size_t stacksize, unsigned thread_workspace)
 {
 	struct worker *w, ww;
+	struct dstat ds;
 	unsigned char ws[thread_workspace];
 	uintptr_t u;
 
@@ -104,6 +108,8 @@ WRK_Thread(struct pool *qp, size_t stacksize, unsigned thread_workspace)
 	w = &ww;
 	INIT_OBJ(w, WORKER_MAGIC);
 	w->lastused = NAN;
+	memset(&ds, 0, sizeof ds);
+	w->stats = &ds;
 	AZ(pthread_cond_init(&w->cond, NULL));
 
 	WS_Init(w->aws, "wrk", ws, thread_workspace);
@@ -138,12 +144,7 @@ pool_addstat(struct dstat *dst, struct dstat *src)
 {
 
 	dst->summs++;
-#define L0(n)
-#define L1(n) (dst->n += src->n)
-#define VSC_FF(n,t,l,s,f,v,d,e)	L##l(n);
-#include "tbl/vsc_f_main.h"
-#undef L0
-#undef L1
+	VSC_main_Summ(dst, src);
 	memset(src, 0, sizeof *src);
 }
 

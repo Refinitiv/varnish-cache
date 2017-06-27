@@ -50,7 +50,6 @@
 #include "vapi/vsm.h"
 #include "vcli.h"
 #include "vre.h"
-#include "vss.h"
 #include "vsub.h"
 #include "vtcp.h"
 #include "vtim.h"
@@ -77,7 +76,8 @@ struct varnish {
 	char			*jail;
 	char			*proto;
 
-	struct VSM_data		*vd;		/* vsc use */
+	struct vsm		*vd;		/* vsc use */
+	struct vsm_fantom	mgt_arg_i;
 
 	unsigned		vsl_tag_count[256];
 
@@ -198,7 +198,7 @@ varnishlog_thread(void *priv)
 {
 	struct varnish *v;
 	struct VSL_data *vsl;
-	struct VSM_data *vsm;
+	struct vsm *vsm;
 	struct VSL_cursor *c;
 	enum VSL_tag_e tag;
 	uint32_t vxid;
@@ -418,8 +418,10 @@ varnish_launch(struct varnish *v)
 	VSB_cat(vsb, VSB_data(params_vsb));
 	if (vtc_witness)
 		VSB_cat(vsb, " -p debug=+witness");
-	if (leave_temp)
+	if (leave_temp) {
 		VSB_cat(vsb, " -p debug=+vsm_keep");
+		VSB_cat(vsb, " -p debug=+vmod_so_keep");
+	}
 	VSB_printf(vsb, " -l 2m,1m,-");
 	VSB_printf(vsb, " -p auto_restart=off");
 	VSB_printf(vsb, " -p syslog_cli_traffic=off");
@@ -475,7 +477,7 @@ varnish_launch(struct varnish *v)
 	fd[0].events = POLLIN;
 	fd[1].fd = v->fds[1];
 	fd[1].events = POLLIN;
-	i = poll(fd, 2, 10000);
+	i = poll(fd, 2, vtc_maxdur * 1000 / 3);
 	vtc_log(v->vl, 4, "CLIPOLL %d 0x%x 0x%x",
 	    i, fd[0].revents, fd[1].revents);
 	if (i == 0)
@@ -524,6 +526,7 @@ varnish_launch(struct varnish *v)
 
 	(void)VSM_n_Arg(v->vd, v->workdir);
 	AZ(VSM_Open(v->vd));
+	assert(VSM_Get(v->vd, &v->mgt_arg_i, "Arg", "-i") > 0);
 }
 
 /**********************************************************************
@@ -665,7 +668,7 @@ varnish_wait(struct varnish *v)
 
 	if (!vtc_error) {
 		/* Do a backend.list to log if child is still running */
-		varnish_ask_cli(v, "backend.list", &resp);
+		(void)varnish_ask_cli(v, "backend.list", &resp);
 	}
 
 	/* Then stop it */
@@ -810,43 +813,38 @@ do_stat_dump_cb(void *priv, const struct VSC_point * const pt)
 	const struct varnish *v;
 	struct dump_priv *dp;
 	uint64_t u;
-	char buf[1024];
 
 	if (pt == NULL)
 		return (0);
 	dp = priv;
 	v = dp->v;
 
-	if (strcmp(pt->desc->ctype, "uint64_t"))
+	if (strcmp(pt->ctype, "uint64_t"))
 		return (0);
-	u = *(const volatile uint64_t*)pt->ptr;
-
-	strcpy(buf, pt->section->type);
-	if (pt->section->ident[0] != '\0')
-		bprintf(buf, "%s.%s", pt->section->ident, pt->desc->name);
-	else
-		bprintf(buf, "MAIN.%s", pt->desc->name);
+	u = *pt->ptr;
 
 	if (strcmp(dp->arg, "*")) {
-		if (fnmatch(dp->arg, buf, 0))
+		if (fnmatch(dp->arg, pt->name, 0))
 			return (0);
 	}
 
-	vtc_log(v->vl, 4, "VSC %s %ju",  buf, (uintmax_t)u);
+	vtc_log(v->vl, 4, "VSC %s %ju",  pt->name, (uintmax_t)u);
 	return (0);
 }
 
 static void
-varnish_vsc(const struct varnish *v, const char *arg)
+varnish_vsc(struct varnish *v, const char *arg)
 {
 	struct dump_priv dp;
 
 	memset(&dp, 0, sizeof dp);
 	dp.v = v;
 	dp.arg = arg;
-	if (VSM_Abandoned(v->vd)) {
+	if (VSM_StillValid(v->vd, &v->mgt_arg_i) != VSM_valid) {
 		VSM_Close(v->vd);
-		VSM_Open(v->vd);
+		if (VSM_Open(v->vd) < 0)
+			vtc_fatal(v->vl, "Could not open VSM (%s)",
+			    VSM_Error(v->vd));
 	}
 
 	(void)VSC_Iter(v->vd, NULL, do_stat_dump_cb, &dp);
@@ -857,8 +855,6 @@ varnish_vsc(const struct varnish *v, const char *arg)
  */
 
 struct stat_priv {
-	char target_type[256];
-	char target_ident[256];
 	char target_name[256];
 	uintmax_t val;
 	const struct varnish *v;
@@ -872,15 +868,12 @@ do_stat_cb(void *priv, const struct VSC_point * const pt)
 	if (pt == NULL)
 		return(0);
 
-	if (strcmp(pt->section->type, sp->target_type))
-		return(0);
-	if (strcmp(pt->section->ident, sp->target_ident))
-		return(0);
-	if (strcmp(pt->desc->name, sp->target_name))
+	if (strcmp(pt->name, sp->target_name))
 		return(0);
 
-	AZ(strcmp(pt->desc->ctype, "uint64_t"));
-	sp->val = *(const volatile uint64_t*)pt->ptr;
+	AZ(strcmp(pt->ctype, "uint64_t"));
+	AN(pt->ptr);
+	sp->val = *pt->ptr;
 	return (1);
 }
 
@@ -888,13 +881,12 @@ do_stat_cb(void *priv, const struct VSC_point * const pt)
  */
 
 static void
-varnish_expect(const struct varnish *v, char * const *av)
+varnish_expect(struct varnish *v, char * const *av)
 {
 	uint64_t ref;
 	int good;
 	char *r;
 	char *p;
-	char *q;
 	int i, not = 0;
 	struct stat_priv sp;
 
@@ -907,22 +899,11 @@ varnish_expect(const struct varnish *v, char * const *av)
 		AN(av[1]);
 		AN(av[2]);
 	}
-	p = strchr(r, '.');
+	p = strrchr(r, '.');
 	if (p == NULL) {
-		strcpy(sp.target_type, "MAIN");
-		sp.target_ident[0] = '\0';
-		bprintf(sp.target_name, "%s", r);
+		bprintf(sp.target_name, "MAIN.%s", r);
 	} else {
-		bprintf(sp.target_type, "%.*s", (int)(p - r), r);
-		p++;
-		q = strrchr(p, '.');
-		if (q == NULL) {
-			sp.target_ident[0] = '\0';
-			bprintf(sp.target_name, "%s", p);
-		} else {
-			bprintf(sp.target_ident, "%.*s", (int)(q - p), p);
-			bprintf(sp.target_name, "%s", q + 1);
-		}
+		bprintf(sp.target_name, "%s", r);
 	}
 
 	sp.val = 0;
@@ -930,7 +911,7 @@ varnish_expect(const struct varnish *v, char * const *av)
 	ref = 0;
 	good = 0;
 	for (i = 0; i < 10; i++, (void)usleep(100000)) {
-		if (VSM_Abandoned(v->vd)) {
+		if (VSM_StillValid(v->vd, &v->mgt_arg_i) != VSM_valid) {
 			VSM_Close(v->vd);
 			good = VSM_Open(v->vd);
 		}
@@ -997,7 +978,7 @@ varnish_expect(const struct varnish *v, char * const *av)
  * With:
  *
  * vNAME
- *         Identify the Varnish server with a string, it must starts with 'v'.
+ *	   Identify the Varnish server with a string, it must starts with 'v'.
  *
  * \-arg STRING
  *         Pass an argument to varnishd, for example "-h simple_list".
@@ -1045,7 +1026,7 @@ varnish_expect(const struct varnish *v, char * const *av)
  *
  * \-cleanup
  *         Once Varnish is stopped, clean everything after it. This is only used
- *         in one test and you should never need it.
+ *         in very few tests and you should never need it.
  *
  * Once Varnish is started, you can talk to it (as you would through
  * ``varnishadm``) with these additional switches::

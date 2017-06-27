@@ -38,17 +38,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <ctype.h>
 #include <netinet/in.h>
 
 #include "vtc.h"
 #include "vtc_http.h"
 
-#include "vct.h"
 #include "vfil.h"
-#include "vgz.h"
-#include "vnum.h"
-#include "vre.h"
 #include "hpack.h"
 #include "vend.h"
 
@@ -364,30 +359,18 @@ explain_flags(uint8_t flags, uint8_t type, struct vtclog *vl)
 {
 	if (flags & ACK && (type == TYPE_PING || type == TYPE_SETTINGS)) {
 		vtc_log(vl, 3, "flag: ACK");
-		flags &= ~ACK;
-	} else if (flags & END_STREAM &&
-			(type == TYPE_HEADERS ||
-			 type == TYPE_PUSH_PROMISE ||
-			 type == TYPE_DATA)) {
+	} else if (flags & END_STREAM && (type == TYPE_HEADERS ||
+	    type == TYPE_PUSH_PROMISE || type == TYPE_DATA)) {
 		vtc_log(vl, 3, "flag: END_STREAM");
-		flags &= ~END_STREAM;
-	} else if (flags & END_HEADERS &&
-			(type == TYPE_HEADERS ||
-			 type == TYPE_PUSH_PROMISE ||
-			 type == TYPE_CONTINUATION)) {
+	} else if (flags & END_HEADERS && (type == TYPE_HEADERS ||
+	    type == TYPE_PUSH_PROMISE || type == TYPE_CONTINUATION)) {
 		vtc_log(vl, 3, "flag: END_TYPE_HEADERS");
-		flags &= ~END_HEADERS;
-	} else if (flags & PRIORITY &&
-			(type == TYPE_HEADERS ||
-			 type == TYPE_PUSH_PROMISE)) {
+	} else if (flags & PRIORITY && (type == TYPE_HEADERS ||
+	    type == TYPE_PUSH_PROMISE)) {
 		vtc_log(vl, 3, "flag: END_PRIORITY");
-		flags &= ~PRIORITY;
-	} else if (flags & PADDED &&
-			(type == TYPE_DATA ||
-			 type == TYPE_HEADERS ||
-			 type == TYPE_PUSH_PROMISE)) {
+	} else if (flags & PADDED && (type == TYPE_DATA || type ==
+	    TYPE_HEADERS || type == TYPE_PUSH_PROMISE)) {
 		vtc_log(vl, 3, "flag: PADDED");
-		flags &= ~PADDED;
 	} else if (flags)
 		vtc_log(vl, 3, "UNKNOWN FLAG(S): 0x%02x", flags);
 }
@@ -417,12 +400,16 @@ parse_data(struct stream *s, struct frame *f)
 		vtc_log(hp->vl, 4, "padding: %3d", f->md.padded);
 	}
 
-	if (!size)
-		vtc_log(hp->vl, 4, "s%u - no data", s->id);
-
 	if (s->id)
 		s->ws -= size;
+
 	s->hp->ws -= size;
+
+	if (!size) {
+		AZ(data);
+		vtc_log(hp->vl, 4, "s%u - no data", s->id);
+		return;
+	}
 
 	if (s->body) {
 		s->body = realloc(s->body, s->bodylen + size + 1L);
@@ -759,6 +746,7 @@ receive_frame(void *priv)
 				AZ(pthread_mutex_lock(&hp->mtx));
 				VTAILQ_FOREACH(s, &hp->streams, list)
 					AZ(pthread_cond_signal(&s->cond));
+				clean_frame(&f);
 				AZ(pthread_mutex_unlock(&hp->mtx));
 				vtc_log(hp->vl, hp->fatal,
 				    "could not get frame body");
@@ -852,7 +840,8 @@ receive_frame(void *priv)
 		continue;
 	}
 	AZ(pthread_mutex_unlock(&hp->mtx));
-	assert(vtc_error || vsb == NULL);
+	if (!vtc_error)
+		AZ(vsb);
 	return (NULL);
 }
 
@@ -1229,7 +1218,7 @@ cmd_var_resolve(const struct stream *s, const char *spec, char *buf)
 #include "tbl/h2_error.h"
 	else
 		return (spec);
-	return(NULL);
+	return (NULL);
 }
 
 /* SECTION: stream.spec.frame_sendhex sendhex
@@ -1272,7 +1261,7 @@ cmd_sendhex(CMD_ARGS)
 	hdr.value.ptr = strdup(v);	\
 	AN(hdr.value.ptr);		\
 	hdr.value.len = strlen(v);	\
-	HPK_EncHdr(iter, &hdr);		\
+	(void)HPK_EncHdr(iter, &hdr);	\
 	free(hdr.key.ptr);		\
 	free(hdr.value.ptr);		\
 }
@@ -1717,7 +1706,7 @@ cmd_txrst(CMD_ARGS)
 {
 	struct stream *s;
 	char *p;
-	uint32_t err;
+	uint32_t err = 0;
 	struct frame f;
 	(void)cmd;
 	CAST_OBJ_NOTNULL(s, priv, STREAM_MAGIC);
@@ -1727,7 +1716,7 @@ cmd_txrst(CMD_ARGS)
 	while (*++av) {
 		if (!strcmp(*av, "-err")) {
 			++av;
-			for (err=0; h2_errs[err]; err++) {
+			for (err = 0; h2_errs[err]; err++) {
 				if (!strcmp(h2_errs[err], *av))
 					break;
 			}
@@ -1945,12 +1934,12 @@ cmd_txping(CMD_ARGS)
 }
 
 /*
- * SECTION: stream.spec.goaway_txgoaway rxgoaway
+ * SECTION: stream.spec.goaway_txgoaway txgoaway
  *
  * Possible options include:
  *
  * \-err STRING|INT
- *	set the error code to eplain the termination. The second argument
+ *	set the error code to explain the termination. The second argument
  *	can be a integer or the string version of the error code as found
  *	in rfc7540#7.
  *
@@ -1970,18 +1959,16 @@ cmd_txgoaway(CMD_ARGS)
 	uint32_t err = 0;
 	uint32_t ls = 0;
 	struct frame f;
-	char buf[8];
 
 	(void)cmd;
 	CAST_OBJ_NOTNULL(s, priv, STREAM_MAGIC);
-	memset(buf, 0, 8);
 
 	INIT_FRAME(f, GOAWAY, 8, s->id, 0);
 
 	while (*++av) {
 		if (!strcmp(*av, "-err")) {
 			++av;
-			for (err=0; h2_errs[err]; err++)
+			for (err = 0; h2_errs[err]; err++)
 				if (!strcmp(h2_errs[err], *av))
 					break;
 
@@ -1997,6 +1984,7 @@ cmd_txgoaway(CMD_ARGS)
 				vtc_fatal(vl, "this frame already has debug data");
 			f.size = 8 + strlen(*av);
 			f.data = malloc(f.size);
+			AN(f.data);
 			memcpy(f.data + 8, *av, f.size - 8);
 		} else
 			break;
@@ -2004,8 +1992,10 @@ cmd_txgoaway(CMD_ARGS)
 	if (*av != NULL)
 		vtc_fatal(vl, "Unknown txgoaway spec: %s\n", *av);
 
-	if (!f.data)
-		f.data = malloc(2);
+	if (!f.data) {
+		f.data = malloc(8);
+		AN(f.data);
+	}
 	vbe32enc(f.data, ls);
 	vbe32enc(f.data + 4, err);
 	write_frame(s->hp, &f, 1);
@@ -2412,13 +2402,9 @@ cmd_expect(CMD_ARGS)
 {
 	struct http *hp;
 	struct stream *s;
-	const char *lhs, *clhs;
+	const char *lhs;
 	char *cmp;
-	const char *rhs, *crhs;
-	vre_t *vre;
-	const char *error;
-	int erroroffset;
-	int i, retval = -1;
+	const char *rhs;
 	char buf[20];
 
 	(void)cmd;
@@ -2437,42 +2423,7 @@ cmd_expect(CMD_ARGS)
 	lhs = cmd_var_resolve(s, av[0], buf);
 	cmp = av[1];
 	rhs = cmd_var_resolve(s, av[2], buf);
-
-	clhs = lhs ? lhs : "<undef>";
-	crhs = rhs ? rhs : "<undef>";
-
-	if (!strcmp(cmp, "~") || !strcmp(cmp, "!~")) {
-		vre = VRE_compile(crhs, 0, &error, &erroroffset);
-		if (vre == NULL)
-			vtc_fatal(vl, "REGEXP error: %s (@%d) (%s)",
-			    error, erroroffset, crhs);
-		i = VRE_exec(vre, clhs, strlen(clhs), 0, 0, NULL, 0, 0);
-		retval = (i >= 0 && *cmp == '~') || (i < 0 && *cmp == '!');
-		VRE_free(&vre);
-	} else if (!strcmp(cmp, "==")) {
-		retval = strcmp(clhs, crhs) == 0;
-	} else if (!strcmp(cmp, "!=")) {
-		retval = strcmp(clhs, crhs) != 0;
-	} else if (lhs == NULL || rhs == NULL) {
-		// fail inequality comparisons if either side is undef'ed
-		retval = 0;
-	} else if (!strcmp(cmp, "<")) {
-		retval = isless(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, ">")) {
-		retval = isgreater(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, "<=")) {
-		retval = islessequal(VNUM(lhs), VNUM(rhs));
-	} else if (!strcmp(cmp, ">=")) {
-		retval = isgreaterequal(VNUM(lhs), VNUM(rhs));
-	}
-
-	if (retval == -1)
-		vtc_fatal(vl,
-		    "EXPECT %s (%s) %s %s (%s) test not implemented",
-		    av[0], clhs, av[1], av[2], crhs);
-	else
-		vtc_log(vl, retval ? 4 : 0, "(s%d) EXPECT %s (%s) %s \"%s\" %s",
-		    s->id, av[0], clhs, cmp, crhs, retval ? "match" : "failed");
+	vtc_expect(vl, av[0], lhs, cmp, av[2], rhs);
 	AZ(pthread_mutex_unlock(&s->hp->mtx));
 }
 

@@ -66,7 +66,7 @@ static void
 vut_vpf_remove(void)
 {
 	if (VUT.pfh) {
-		VPF_Remove(VUT.pfh);
+		AZ(VPF_Remove(VUT.pfh));
 		VUT.pfh = NULL;
 	}
 }
@@ -115,14 +115,14 @@ VUT_Error(int status, const char *fmt, ...)
 {
 	va_list ap;
 
+	assert(status != 0);
 	AN(fmt);
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	fprintf(stderr, "\n");
 
-	if (status)
-		exit(status);
+	exit(status);
 }
 
 int
@@ -157,6 +157,7 @@ VUT_Arg(int opt, const char *arg)
 		return (VUT_g_Arg(arg));
 	case 'k':
 		/* Log transaction limit */
+		AN(arg);
 		VUT.k_arg = (int)strtol(arg, &p, 10);
 		if (*p != '\0' || VUT.k_arg <= 0)
 			VUT_Error(1, "-k: Invalid number '%s'", arg);
@@ -164,10 +165,6 @@ VUT_Arg(int opt, const char *arg)
 	case 'n':
 		/* Varnish instance name */
 		REPLACE(VUT.n_arg, arg);
-		return (1);
-	case 'N':
-		/* Varnish stale VSM file */
-		REPLACE(VUT.N_arg, arg);
 		return (1);
 	case 'P':
 		/* PID file */
@@ -183,6 +180,7 @@ VUT_Arg(int opt, const char *arg)
 		return (1);
 	case 't':
 		/* VSM connect timeout */
+		AN(arg);
 		if (!strcasecmp("off", arg))
 			VUT.t_arg = -1.;
 		else {
@@ -217,7 +215,6 @@ VUT_Init(const char *progname, int argc, char * const *argv,
 		exit(vut_options(voc));
 
 	VUT.progname = progname;
-	REPLACE(VUT.name, "");
 	VUT.g_arg = VSL_g_vxid;
 	AZ(VUT.vsl);
 	VUT.vsl = VSL_New();
@@ -237,11 +234,10 @@ VUT_Setup(void)
 	AZ(VUT.vsm);
 	AZ(VUT.vslq);
 
-	/* Check input arguments */
-	if ((VUT.n_arg == NULL ? 0 : 1) +
-	    (VUT.N_arg == NULL ? 0 : 1) +
-	    (VUT.r_arg == NULL ? 0 : 1) > 1)
-		VUT_Error(1, "Only one of -n, -N and -r options may be used");
+	/* Check input arguments (2 used for bug in FlexeLint) */
+	if ((VUT.n_arg == NULL ? 0 : 2) +
+	    (VUT.r_arg == NULL ? 0 : 2) > 2)
+		VUT_Error(1, "Only one of -n and -r options may be used");
 
 	/* Create and validate the query expression */
 	VUT.vslq = VSLQ_New(VUT.vsl, NULL, VUT.g_arg, VUT.q_arg);
@@ -251,7 +247,6 @@ VUT_Setup(void)
 
 	/* Setup input */
 	if (VUT.r_arg) {
-		REPLACE(VUT.name, VUT.r_arg);
 		c = VSL_CursorFile(VUT.vsl, VUT.r_arg, 0);
 		if (c == NULL)
 			VUT_Error(1, "%s", VSL_Error(VUT.vsl));
@@ -260,9 +255,6 @@ VUT_Setup(void)
 		AN(VUT.vsm);
 		if (VUT.n_arg && VSM_n_Arg(VUT.vsm, VUT.n_arg) <= 0)
 			VUT_Error(1, "%s", VSM_Error(VUT.vsm));
-		if (VUT.N_arg && VSM_N_Arg(VUT.vsm, VUT.N_arg) <= 0)
-			VUT_Error(1, "%s", VSM_Error(VUT.vsm));
-		REPLACE(VUT.name, VSM_Name(VUT.vsm));
 		t_start = NAN;
 		c = NULL;
 		while (1) {
@@ -276,8 +268,8 @@ VUT_Setup(void)
 				break;
 
 			if (isnan(t_start) && VUT.t_arg > 0.) {
-				VUT_Error(0, "Cannot open log -"
-				    " retrying for %.0f seconds", VUT.t_arg);
+				fprintf(stderr, "Cannot open log -"
+				    " retrying for %.0f seconds\n", VUT.t_arg);
 				t_start = VTIM_real();
 			}
 			VSM_Close(VUT.vsm);
@@ -297,7 +289,7 @@ VUT_Setup(void)
 			else
 				VUT_Error(1, "%s", VSL_Error(VUT.vsl));
 		} else if (!isnan(t_start))
-			VUT_Error(0, "Log opened");
+			fprintf(stderr, "Log opened\n");
 	}
 
 	if (c)
@@ -324,7 +316,7 @@ VUT_Setup(void)
 
 	/* Write PID and setup exit handler */
 	if (VUT.pfh != NULL) {
-		VPF_Write(VUT.pfh);
+		AZ(VPF_Write(VUT.pfh));
 		AZ(atexit(vut_vpf_remove));
 	}
 }
@@ -333,10 +325,8 @@ void
 VUT_Fini(void)
 {
 	free(VUT.n_arg);
-	free(VUT.N_arg);
 	free(VUT.r_arg);
 	free(VUT.P_arg);
-	free(VUT.name);
 
 	vut_vpf_remove();
 	AZ(VUT.pfh);
@@ -371,7 +361,7 @@ VUT_Main(void)
 		if (VUT.sigusr1) {
 			/* Flush and report any incomplete records */
 			VUT.sigusr1 = 0;
-			VSLQ_Flush(VUT.vslq, vut_dispatch, NULL);
+			(void)VSLQ_Flush(VUT.vslq, vut_dispatch, NULL);
 		}
 
 		if (VUT.vsm != NULL && !VSM_IsOpen(VUT.vsm)) {
@@ -392,7 +382,7 @@ VUT_Main(void)
 			}
 			VSLQ_SetCursor(VUT.vslq, &c);
 			AZ(c);
-			VUT_Error(0, "Log reacquired");
+			fprintf(stderr, "Log reacquired\n");
 		}
 
 		i = VSLQ_Dispatch(VUT.vslq, vut_dispatch, NULL);
@@ -418,14 +408,14 @@ VUT_Main(void)
 
 		/* XXX: Make continuation optional */
 
-		VSLQ_Flush(VUT.vslq, vut_dispatch, NULL);
+		(void)VSLQ_Flush(VUT.vslq, vut_dispatch, NULL);
 
 		if (i == -2)
 			/* Abandoned */
-			VUT_Error(0, "Log abandoned");
+			fprintf(stderr, "Log abandoned\n");
 		else if (i < -2)
 			/* Overrun */
-			VUT_Error(0, "Log overrun");
+			fprintf(stderr, "Log overrun\n");
 
 		VSM_Close(VUT.vsm);
 	}

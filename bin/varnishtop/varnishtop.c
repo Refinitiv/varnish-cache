@@ -35,24 +35,20 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "vcurses.h"
-#include "vapi/vsm.h"
 #include "vapi/vsl.h"
+#include "vapi/vsm.h"
 #include "vapi/voptget.h"
 #include "vas.h"
 #include "vdef.h"
-#include "vcs.h"
 #include "vtree.h"
-#include "vsb.h"
 #include "vut.h"
 
 #if 0
@@ -80,7 +76,7 @@ static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 static int f_flag = 0;
 static unsigned maxfieldlen = 0;
 
-volatile sig_atomic_t quit = 0;
+static volatile sig_atomic_t quit = 0;
 
 static VRB_HEAD(t_order, top) h_order = VRB_INITIALIZER(&h_order);
 static VRB_HEAD(t_key, top) h_key = VRB_INITIALIZER(&h_key);
@@ -193,6 +189,7 @@ update(int p)
 	double t = 0;
 	static time_t last = 0;
 	static unsigned n;
+	const char *q;
 	time_t now;
 
 	now = time(NULL);
@@ -204,11 +201,12 @@ update(int p)
 	if (n < p)
 		n++;
 	AC(erase());
+	q = VSM_Name(VUT.vsm);
+	len = COLS - strlen(q);
 	if (end_of_file)
-		AC(mvprintw(0, COLS - 1 - strlen(VUT.name) - 5, "%s (EOF)",
-			VUT.name));
+		AC(mvprintw(0, len - (1 + 6), "%s (EOF)", q));
 	else
-		AC(mvprintw(0, COLS - 1 - strlen(VUT.name), "%s", VUT.name));
+		AC(mvprintw(0, len - 1, "%s", q));
 	AC(mvprintw(0, 0, "list length %u", ntop));
 	for (tp = VRB_MIN(t_order, &h_order); tp != NULL; tp = tp2) {
 		tp2 = VRB_NEXT(t_order, &h_order, tp);
@@ -310,6 +308,7 @@ dump(void)
 	}
 }
 
+//lint -sem(usage, r_no)
 static void __attribute__((__noreturn__))
 usage(int status)
 {
@@ -368,7 +367,7 @@ main(int argc, char **argv)
 			exit(1);
 		}
 	}
-	VUT.dispatch_f = &accumulate;
+	VUT.dispatch_f = accumulate;
 	VUT.dispatch_priv = NULL;
 	VUT.sighup_f = sighup;
 	VUT_Main();

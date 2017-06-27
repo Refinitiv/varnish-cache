@@ -70,13 +70,19 @@ Basic options
   script (-I option) and the child process will be started if there
   is an active VCL at the end of the initialization.
 
+  When used with a relative file name, config is searched in the
+  ``vcl_path``. It is possible to set this path prior to using ``-f``
+  options with a ``-p`` option. During startup, `varnishd` doesn't
+  complain about unsafe VCL paths: unlike the `varnish-cli(7)` that
+  could later be accessed remotely, starting `varnishd` requires
+  local privileges.
+
 -n name
 
-  Specify the name for this instance.  Amongst other things, this name
-  is used to construct the name of the directory in which `varnishd`
-  keeps temporary files and persistent state. If the specified name
-  begins with a forward slash, it is interpreted as the absolute path
-  to the directory which should be used for this purpose.
+  Specify the name for this instance.  This name is used to construct
+  the name of the directory in which `varnishd` keeps temporary files
+  and persistent state. If the specified name begins with a forward slash,
+  it is interpreted as the absolute path to the directory.
 
 Documentation options
 ---------------------
@@ -135,7 +141,8 @@ Operations options
 -i identity
 
   Specify the identity of the Varnish server. This can be accessed
-  using ``server.identity`` from VCL.
+  using ``server.identity`` from VCL and with VSM_Name() from
+  utilities.  If not specified the output of gethostname(3) is used.
 
 -I clifile
 
@@ -309,8 +316,8 @@ specific options. Available jails are:
 
 -j <unix[,user=`user`][,ccgroup=`group`][,workuser=`user`]>
 
-  Default on all other platforms when `varnishd` is either started with
-  an effective uid of 0 ("as root") or as user ``varnish``.
+  Default on all other platforms when `varnishd` is started with an
+  effective uid of 0 ("as root").
 
   With the ``unix`` jail mechanism activated, varnish will switch to
   an alternative user for subprocesses and change the effective uid of
@@ -420,6 +427,8 @@ relative to the values listed below, in order to conserve VM space:
 * http_req_size: 12k
 * gzip_stack_buffer: 4k
 * thread_pool_stack: 64k
+
+.. _List of Parameters:
 
 List of Parameters
 ------------------

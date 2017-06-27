@@ -170,7 +170,7 @@ VRT_StringList(char *d, unsigned dl, const char *p, va_list ap)
 	b = d;
 	e = b + dl;
 	while (p != vrt_magic_string_end && b < e) {
-		if (p != NULL) {
+		if (p != NULL && *p != '\0') {
 			x = strlen(p);
 			if (b + x < e)
 				memcpy(b, p, x);
@@ -457,7 +457,11 @@ VRT_ban_string(VRT_CTX, const char *str)
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(ctx->vsl);
-	AN(str);
+
+	if (str == NULL) {
+		VSLb(ctx->vsl, SLT_VCL_Error, "ban(): Null argument");
+		return;
+	}
 
 	bp = BAN_Build();
 	if (bp == NULL) {
@@ -539,11 +543,17 @@ VRT_purge(VRT_CTX, double ttl, double grace, double keep)
 {
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+
+	if (ctx->method != VCL_MET_HIT && ctx->method != VCL_MET_MISS) {
+		VSLb(ctx->vsl, SLT_VCL_Error,
+		    "purge can only happen in vcl_hit{} or vcl_miss{}");
+		VRT_handling(ctx, VCL_RET_FAIL);
+		return;
+	}
+
 	CHECK_OBJ_NOTNULL(ctx->req, REQ_MAGIC);
 	CHECK_OBJ_NOTNULL(ctx->req->wrk, WORKER_MAGIC);
-	if (ctx->method == VCL_MET_HIT || ctx->method == VCL_MET_MISS)
-		HSH_Purge(ctx->req->wrk, ctx->req->objcore->objhead,
-		    ttl, grace, keep);
+	HSH_Purge(ctx->req->wrk, ctx->req->objcore->objhead, ttl, grace, keep);
 }
 
 /*--------------------------------------------------------------------

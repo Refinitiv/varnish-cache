@@ -1,6 +1,5 @@
 /*-
- * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2015 Varnish Software AS
+ * Copyright (c) 2017 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -25,20 +24,36 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * Define the internal details which must be kept in sync between
- * vsm_priv.h and vapi/vsm.h, and this file SHALL not be included
- * from anywhere but those two files.
- *
- * NB: THIS IS NOT A PUBLIC API TO VARNISH!
- *
  */
 
-#ifndef VSM_INT_H_INCLUDED
-#define VSM_INT_H_INCLUDED
+extern const char VJSN_OBJECT[];
+extern const char VJSN_ARRAY[];
+extern const char VJSN_NUMBER[];
+extern const char VJSN_STRING[];
+extern const char VJSN_TRUE[];
+extern const char VJSN_FALSE[];
+extern const char VJSN_NULL[];
 
-#define VSM_FILENAME		"_.vsm"
-#define VSM_MARKER_LEN	8
-#define VSM_IDENT_LEN	128
+struct vjsn_val {
+	unsigned		magic;
+#define VJSN_VAL_MAGIC		0x08a06b80
+	const char		*type;
+	const char		*name;
+	VTAILQ_ENTRY(vjsn_val)	list;
+	VTAILQ_HEAD(,vjsn_val)	children;
+	char			*value;
+};
 
-#endif /* VSM_INT_H_INCLUDED */
+struct vjsn {
+	unsigned		magic;
+#define VJSN_MAGIC		0x86a7f02b
+
+	char			*raw;
+	char			*ptr;
+	struct vjsn_val		*value;
+	const char		*err;
+};
+
+struct vjsn *vjsn_parse(const char *, const char **);
+void vjsn_dump(const struct vjsn *js, FILE *fo);
+struct vjsn_val *vjsn_child(const struct vjsn_val *, const char *);

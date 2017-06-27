@@ -30,18 +30,11 @@
 
 #include "config.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #include <ctype.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <math.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 #include "vdef.h"
 #include "vas.h"
@@ -53,10 +46,8 @@
 #include "vre.h"
 
 #include "vapi/vsl.h"
-#include "vapi/vsm.h"
 
 #include "vsl_api.h"
-#include "vsm_api.h"
 
 /*--------------------------------------------------------------------
  * Look up a tag
@@ -200,6 +191,7 @@ VSLQ_Name2Grouping(const char *name, int l)
 {
 	int i, n;
 
+	AN(name);
 	if (l == -1)
 		l = strlen(name);
 	n = -1;
@@ -265,6 +257,7 @@ vsl_IX_arg(struct VSL_data *vsl, int opt, const char *arg)
 	struct vbitmap *tags = NULL;
 
 	CHECK_OBJ_NOTNULL(vsl, VSL_MAGIC);
+	AN(arg);
 	vsl->flags |= F_SEEN_ixIX;
 
 	b = arg;
@@ -338,6 +331,7 @@ VSL_Arg(struct VSL_data *vsl, int opt, const char *arg)
 	case 'i': case 'x': return (vsl_ix_arg(vsl, opt, arg));
 	case 'I': case 'X': return (vsl_IX_arg(vsl, opt, arg));
 	case 'L':
+		AN(arg);
 		l = strtol(arg, &p, 0);
 		while (isspace(*p))
 			p++;
@@ -348,6 +342,7 @@ VSL_Arg(struct VSL_data *vsl, int opt, const char *arg)
 		vsl->L_opt = (int)l;
 		return (1);
 	case 'T':
+		AN(arg);
 		d = VNUM(arg);
 		if (isnan(d))
 			return (vsl_diag(vsl, "-T: Syntax error"));

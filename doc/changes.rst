@@ -1,3 +1,20 @@
+=============================
+Varnish Cache Trunk (ongoing)
+=============================
+
+* Default the -i argument to gethostname(3)
+
+* On platforms with setproctitle(3), use the -i argument rather than -n
+
+* VRT_purge fails a transaction if used outside of ``vcl_hit`` and
+  ``vcl_miss`` (#2339)
+
+* VSM_Name() returns the -i argument name, rather than the -n name.
+
+* VUT.name is gone, use VSM_Name(VUT.vsm)
+
+* varnishd honors vcl_path (#2342)
+
 ================================
 Varnish Cache 5.1.2 (2017-04-07)
 ================================

@@ -43,9 +43,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-
 #include "binary_heap.h"
 #include "vcli_serve.h"
 #include "vrt.h"
@@ -55,6 +52,8 @@
 
 #include "cache_director.h"
 #include "cache_backend.h"
+
+#include "VSC_vbe.h"
 
 /* Default averaging rate, we want something pretty responsive */
 #define AVG_RATE			4

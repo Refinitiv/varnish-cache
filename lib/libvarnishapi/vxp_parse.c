@@ -32,10 +32,7 @@
 
 #include <ctype.h>
 #include <math.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "vdef.h"
 #include "vas.h"
@@ -195,7 +192,7 @@ vxp_expr_lhs(struct vxp *vxp, struct vex_lhs **plhs)
 }
 
 static void
-vxp_expr_num(struct vxp *vxp, struct vex_rhs **prhs, int vxid)
+vxp_expr_num(struct vxp *vxp, struct vex_rhs **prhs, unsigned vxid)
 {
 	char *endptr;
 

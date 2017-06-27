@@ -2,13 +2,25 @@ varnishtest "varnishncsa coverage"
 
 server s1 -repeat 2 {
 	rxreq
-	txresp
+	txresp -bodylen 100
 } -start
 
 varnish v1 -vcl+backend {
 	import std;
-	sub vcl_backend_fetch {
-		std.log("foo:qux");
+
+	sub vcl_recv {
+		if (req.url == "/2") {
+			return (pipe);
+		}
+		return (hash);
+	}
+
+	sub vcl_miss {
+		std.log("quux:quuz");
+	}
+
+	sub vcl_hit {
+		return (synth(404));
 	}
 } -start
 
@@ -17,6 +29,38 @@ shell {
 		-w ${tmpdir}/ncsa.log
 }
 
+delay 1
+
+client c1 {
+	txreq -url /1?foo=bar -hdr "authorization: basic dXNlcjpwYXNz"
+	rxresp
+	txreq -url /1?foo=bar -hdr "baz: qux"
+	rxresp
+} -run
+
+delay 1
+
+shell "mv ${tmpdir}/ncsa.log ${tmpdir}/ncsa.old.log"
+shell "kill -HUP `cat ${tmpdir}/ncsa.pid`"
+
+client c1 {
+	txreq -url /2
+	rxresp
+} -run
+
+delay 1
+
+shell "kill `cat ${tmpdir}/ncsa.pid`"
+
+# default formatter and rotation
+shell -match {^\d+.\d+.\d+.\d+ - user \[../.../20[1-9][0-9]:..:..:.. (?#
+)[+-]....\] "GET http://localhost/1\?foo=bar HTTP/1.1" 200 100 "-" "-"
+\d+.\d+.\d+.\d+ - - \[../.../20[1-9][0-9]:..:..:.. [+-]....\] (?#
+)"GET http://localhost/1\?foo=bar HTTP/1.1" 404 \d+ "-" "-"$} \
+	"cat ${tmpdir}/ncsa.old.log"
+shell "grep -q /2 ${tmpdir}/ncsa.log"
+
+# command line
 shell -expect "Usage: varnishncsa <options>" \
 	"varnishncsa -h"
 shell -expect "Copyright (c) 2006 Verdens Gang AS" \
@@ -27,10 +71,10 @@ shell -err -expect "Unknown format specifier at: %{foo}A" \
 	{varnishncsa -F "%{foo}A"}
 shell -err -expect "Unknown format specifier at: %A" \
 	{varnishncsa -F "%A"}
+shell -err -expect "Unmatched bracket at: %{foo" \
+	"varnishncsa -F %{foo"
 shell -err -expect "Unknown formatting extension: foo" \
 	{varnishncsa -F "%{foo}x"}
-shell -err -expect "Usage: varnishncsa <options>" \
-	{varnishncsa extra}
 shell -err -expect "Missing tag in VSL:" \
 	{varnishncsa -F "%{VSL:}x"}
 shell -err -expect "Unknown log tag: nonexistent" \
@@ -45,9 +89,11 @@ shell -err -expect "Unknown log tag: Begin[a" \
 	{varnishncsa -F "%{VSL:Begin[a}x"}
 shell -err -expect "Syntax error: VSL:Begin[a]" \
 	{varnishncsa -F "%{VSL:Begin[a]}x"}
-shell -err -expect "Syntax error. Field specifier must be positive: Begin[0]" \
+shell -err -match {Syntax error. (?#
+)Field specifier must be positive: Begin\[0\]} \
 	{varnishncsa -F "%{VSL:Begin[0]}x"}
-shell -err -expect "Field specifier 999999999999 for the tag VSL:Begin[999999999999] is probably too high" \
+shell -err -match {Field specifier 999999999999 for the tag (?#
+)VSL:Begin\[999999999999\] is probably too high} \
 	{varnishncsa -F "%{VSL:Begin[999999999999]}x"}
 shell -err -expect "Can't open format file (No such file or directory)" \
 	{varnishncsa -f /nonexistent/file}
@@ -57,33 +103,46 @@ shell -err -expect "Empty format file" \
 # directory but happily works in FreeBSD.
 #shell -err -expect "Can't read format from file (Is a directory)" \
 #	{varnishncsa -f ${tmpdir}}
+shell -err -expect "Invalid grouping mode: session" \
+	{varnishncsa -g session}
+shell -err -expect "Can't open output file (No such file or directory)" \
+	{varnishncsa -w /nonexistent/file}
+shell -err -expect "Usage: varnishncsa <options>" \
+	{varnishncsa extra}
 
-delay 1
+# -b
+shell -match {^\d+.\d+.\d+.\d+ 100
+- 0$} \
+	{varnishncsa -n ${v1_name} -b -d -F "%{Host}i %b"}
+# -c
+shell -match {^- 100
+- \d+
+- -$} \
+	{varnishncsa -n ${v1_name} -c -d -F "%{Host}i %b"}
 
-client c1 {
-	txreq -url /foo
-	rxresp
-} -run
-
-delay 1
-
-shell "mv ${tmpdir}/ncsa.log ${tmpdir}/ncsa.old.log"
-shell "kill -HUP `cat ${tmpdir}/ncsa.pid`"
-
-client c1 {
-	txreq -url /bar
-	rxresp
-} -run
-
-delay 1
-
-shell "kill `cat ${tmpdir}/ncsa.pid`"
-
-shell "grep -q /foo ${tmpdir}/ncsa.old.log"
-shell "grep -q /bar ${tmpdir}/ncsa.log"
-
-shell {echo "%{VSL:Begin}x %{Varnish:vxid}x %{VCL_Log:foo}x %D %T %{Varnish:handling}x %{%Z}t" >${tmpdir}/format}
-shell -match "^req 1000 rxreq 1001  [0-9]+ 0 miss [A-Z]{3,}" \
+# -f and standard formatters
+shell {echo "%b %D %H %h %I %{baz}i %l %m %{Age}o %O %q %s %t %{%Y}t \
+%T %U %u" > ${tmpdir}/format}
+shell -match {^100 \d+ HTTP/1.1 \d+.\d+.\d+.\d+ \d+ - - GET 0 \d+ (?#
+)\?foo=bar 200 \[../.../(20[1-9][0-9]):..:..:.. [+-]....\] \1 \d+ /1 user
+\d+ \d+ HTTP/1.1 \d+.\d+.\d+.\d+ \d+ qux - GET - \d+ (?#
+)\?foo=bar 404 \[../.../(20[1-9][0-9]):..:..:.. [+-]....\] \1 \d+ /1 -
+- \d+ HTTP/1.1 \d+.\d+.\d+.\d+ \d+ - - GET - \d+ (?#
+) - \[../.../(20[1-9][0-9]):..:..:.. [+-]....\] \1 \d+ /2 -$} \
 	{varnishncsa -n ${v1_name} -d -f ${tmpdir}/format}
-shell -match "^bereq 1001 fetch 1002 qux [0-9]+ 0 - [A-Z]{3,}" \
-	{varnishncsa -n ${v1_name} -d -f ${tmpdir}/format -b}
+
+# extended variables
+shell -match {^\d+.\d{6} miss miss c 1001 quuz
+\d+.\d{6} miss synth c 1003\s
+\d+.\d{6} miss pipe c 1005\s$} \
+	{varnishncsa -n ${v1_name} -d -F "%{Varnish:time_firstbyte}x \
+%{Varnish:hitmiss}x %{Varnish:handling}x %{Varnish:side}x \
+%{Varnish:vxid}x %{VCL_Log:quux}x"}
+
+# %{VSL:..}x
+shell -match {^req (\d+) rxreq \1 \d{10}\.\d{6} (\d+\.\d{6}) \d+\.\d{6} \2 -
+req (\d+) rxreq \3 \d{10}\.\d{6} (\d+\.\d{6}) \d+\.\d{6} \4 -
+req (\d+) rxreq \5 - - -$} \
+	{varnishncsa -n ${v1_name} -d -F "%{VSL:Begin}x \
+%{VSL:Begin[2]}x %{VSL:Timestamp:Resp}x \
+%{VSL:Timestamp:Resp[2]}x %{VSL:Timestamp:foo}x"}

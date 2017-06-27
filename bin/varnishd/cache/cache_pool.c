@@ -35,7 +35,6 @@
 
 #include "config.h"
 
-#include <errno.h>
 #include <stdlib.h>
 
 #include "cache.h"
@@ -56,16 +55,11 @@ pool_sumstat(const struct dstat *src)
 {
 
 	Lck_AssertHeld(&wstat_mtx);
-#define L0(n)
-#define L1(n) (VSC_C_main->n += src->n)
-#define VSC_FF(n,t,l,s,f,v,d,e)	L##l(n);
-#include "tbl/vsc_f_main.h"
-#undef L0
-#undef L1
+	VSC_main_Summ(VSC_C_main, src);
 }
 
 void
-Pool_Sumstat(struct worker *wrk)
+Pool_Sumstat(const struct worker *wrk)
 {
 
 	Lck_Lock(&wstat_mtx);
@@ -75,7 +69,7 @@ Pool_Sumstat(struct worker *wrk)
 }
 
 int
-Pool_TrySumstat(struct worker *wrk)
+Pool_TrySumstat(const struct worker *wrk)
 {
 	if (Lck_Trylock(&wstat_mtx))
 		return (0);
