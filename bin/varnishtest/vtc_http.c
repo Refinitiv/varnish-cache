@@ -1129,7 +1129,7 @@ cmd_http_sendhex(CMD_ARGS)
 	AN(p);
 	q = av[1];
 	for (i = 0; i < l; i++) {
-		while (vct_issp(*q) || *q == '\n')
+		while (vct_issp(*q))
 			q++;
 		if (*q == '\0')
 			break;
