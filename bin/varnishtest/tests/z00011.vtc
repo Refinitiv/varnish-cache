@@ -15,7 +15,7 @@ server s3 {
 	txresp -hdr "Foo: 3"
 } -start
 
-varnish v1 -arg "-p vmod_dir=${vmod_topbuild}" -vcl+backend {
+varnish v1 -vcl+backend {
 	import ${vmod_directors};
 
 	sub vcl_init {
