@@ -100,6 +100,7 @@ vcc_ParseProbeSpec(struct vcc *tl, const struct token *nm, char **name)
 	struct vsb *vsb;
 	char *retval;
 	unsigned window, threshold, initial, status;
+	int stay_sick;
 	double t;
 
 	fs = vcc_FldSpec(tl,
@@ -111,6 +112,7 @@ vcc_ParseProbeSpec(struct vcc *tl, const struct token *nm, char **name)
 	    "?window",
 	    "?threshold",
 	    "?initial",
+	    "?stay_sick",
 	    NULL);
 
 	SkipToken(tl, '{');
@@ -131,6 +133,7 @@ vcc_ParseProbeSpec(struct vcc *tl, const struct token *nm, char **name)
 	threshold = 0;
 	initial = 0;
 	status = 0;
+	stay_sick = 0;
 	Fh(tl, 0, "static const struct vrt_backend_probe %s = {\n", retval);
 	Fh(tl, 0, "\t.magic = VRT_BACKEND_PROBE_MAGIC,\n");
 	while (tl->t->tok != '}') {
@@ -190,6 +193,15 @@ vcc_ParseProbeSpec(struct vcc *tl, const struct token *nm, char **name)
 			t_threshold = tl->t;
 			threshold = vcc_UintVal(tl);
 			ERRCHK(tl);
+		} else if (vcc_IdIs(t_field, "stay_sick")) {
+			stay_sick = vcc_BoolVal(tl);
+			if (stay_sick < 0) {
+				VSB_printf(tl->sb,
+				    "Value of stay_sick should be 'false' or 'true' only\n");
+				vcc_ErrWhere(tl, tl->t);
+			return;
+			}
+			ERRCHK(tl);
 		} else {
 			vcc_ErrToken(tl, t_field);
 			vcc_ErrWhere(tl, t_field);
@@ -237,6 +249,7 @@ vcc_ParseProbeSpec(struct vcc *tl, const struct token *nm, char **name)
 		Fh(tl, 0, "\t.initial = ~0U,\n");
 	if (status > 0)
 		Fh(tl, 0, "\t.exp_status = %u,\n", status);
+	Fh(tl, 0, "\t.stay_sick = %d,\n", stay_sick);
 	Fh(tl, 0, "};\n");
 	SkipToken(tl, '}');
 }

@@ -90,6 +90,8 @@ static struct lock			vbp_mtx;
 static pthread_cond_t			vbp_cond;
 static struct binheap			*vbp_heap;
 
+extern const char * const vbe_ah_sick;
+
 /*--------------------------------------------------------------------*/
 
 static void
@@ -168,22 +170,29 @@ vbp_update_backend(struct vbp_target *vt)
 			if (vt->backend->healthy)
 				logmsg = "Still healthy";
 			else {
-				logmsg = "Back healthy";
+				if (vt->stay_sick && vt->backend->admin_health == vbe_ah_sick)
+					logmsg = "Back healthy - suspended, verify and set healthy status manually";
+				else
+					logmsg = "Back healthy";
 				vt->backend->health_changed = VTIM_real();
 			}
 			vt->backend->healthy = 1;
 		} else {
 			if (vt->backend->healthy) {
-				logmsg = "Went sick";
+				if (vt->stay_sick) {
+					logmsg = "Went sick - won't back automatically, verify and set healthy status manually";
+					vt->backend->admin_health = vbe_ah_sick;
+				} else
+					logmsg = "Went sick";
 				vt->backend->health_changed = VTIM_real();
 			} else
 				logmsg = "Still sick";
 			vt->backend->healthy = 0;
 		}
-		VSL(SLT_Backend_health, 0, "%s %s %s %u %u %u %.6f %.6f %s",
-		    vt->backend->display_name, logmsg, bits,
-		    vt->good, vt->threshold, vt->window,
-		    vt->last, vt->avg, vt->resp_buf);
+		VSL(SLT_Backend_health, 0, "%s %s %s %u %u %u %.6f %.6f %u %s",
+			vt->backend->display_name, logmsg, bits,
+			vt->good, vt->threshold, vt->window,
+			vt->last, vt->avg, vt->stay_sick, vt->resp_buf);
 		if (vt->backend != NULL && vt->backend->vsc != NULL)
 			vt->backend->vsc->happy = vt->happy;
 	}

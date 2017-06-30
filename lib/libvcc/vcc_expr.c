@@ -89,6 +89,32 @@ vcc_TimeUnit(struct vcc *tl)
 }
 
 /*--------------------------------------------------------------------
+ * Recognize and convert 'bool' to 0 or 1, -1 is error
+ */
+
+int
+vcc_BoolVal(struct vcc *tl)
+{
+	int d = 0;
+
+	assert(tl->t->tok == ID);
+	if (vcc_IdIs(tl->t, "true"))
+		d = 1;
+	else if (vcc_IdIs(tl->t, "false"))
+		d = 0;
+	else {
+		VSB_printf(tl->sb, "Unknown token ");
+		vcc_ErrToken(tl, tl->t);
+		VSB_printf(tl->sb, ".  Legal are 'false' and 'true'\n");
+		vcc_ErrWhere(tl, tl->t);
+		return (-1);
+	}
+
+	vcc_NextToken(tl);
+	return (d);
+}
+
+/*--------------------------------------------------------------------
  * Recognize and convert { CNUM } to unsigned value
  * The tokenizer made sure we only get digits.
  */

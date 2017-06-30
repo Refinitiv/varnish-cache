@@ -281,6 +281,7 @@ void EncString(struct vsb *sb, const char *b, const char *e, int mode);
 /* vcc_expr.c */
 double vcc_DoubleVal(struct vcc *tl);
 void vcc_Duration(struct vcc *tl, double *);
+int vcc_BoolVal(struct vcc *tl);
 unsigned vcc_UintVal(struct vcc *tl);
 void vcc_Expr(struct vcc *tl, enum var_type typ);
 void vcc_Expr_Call(struct vcc *tl, const struct symbol *sym);

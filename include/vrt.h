@@ -201,7 +201,8 @@ struct vrt_backend {
 	unsigned			exp_status;		\
 	unsigned			window;			\
 	unsigned			threshold;		\
-	unsigned			initial;
+	unsigned			initial;		\
+	unsigned			stay_sick;
 
 #define VRT_BACKEND_PROBE_HANDLE()		\
 	do {					\
@@ -211,6 +212,7 @@ struct vrt_backend {
 		DN(window);			\
 		DN(threshold);			\
 		DN(initial);			\
+		DN(stay_sick);			\
 	} while (0)
 
 struct vrt_backend_probe {
