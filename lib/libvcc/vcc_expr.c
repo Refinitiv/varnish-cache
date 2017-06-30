@@ -1194,6 +1194,10 @@ vcc_expr_cmp(struct vcc *tl, struct expr **e, enum var_type fmt)
 	vcc_expr_strfold(tl, e, fmt);
 	ERRCHK(tl);
 
+	if ((*e)->fmt == BACKEND && (tl->t->tok == T_EQ || tl->t->tok == T_NEQ)) {
+		vcc_expr_tostring(tl, e, STRING);
+	}
+
 	if ((*e)->fmt == BOOL)
 		return;
 
@@ -1204,6 +1208,9 @@ vcc_expr_cmp(struct vcc *tl, struct expr **e, enum var_type fmt)
 	if (cp->fmt != VOID) {
 		vcc_NextToken(tl);
 		vcc_expr_strfold(tl, &e2, (*e)->fmt);
+		if ((*e)->fmt == STRING) {
+			vcc_expr_tostring(tl, &e2, STRING);
+		}
 		ERRCHK(tl);
 		if (e2->fmt != (*e)->fmt) { /* XXX */
 			VSB_printf(tl->sb, "Comparison of different types: ");
